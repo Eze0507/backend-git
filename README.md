@@ -4,7 +4,7 @@ git clone https://github.com/Eze0507/Backend-taller.git
 
 ## crear entorno virtual
 ### instalar virtualenv en la carpeta del proyecto
-pip install virtualenv
+pip install virtualenv <br>
 virtualenv env
 ### activar En Windows
 .\env\Scripts\activate
