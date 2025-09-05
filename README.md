@@ -2,10 +2,9 @@
 ## clonar repositorio
 git clone [repository url]
 
-## crear entorno virtual
-### instalar virtualenv en la carpeta del proyecto
-pip install virtualenv <br>
-virtualenv env
+## entorno virtual
+### crear entorno virtual
+python -m venv env
 ### activar En Windows
 .\env\Scripts\activate
 ### activar En macOS/Linux
