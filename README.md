@@ -1,8 +1,8 @@
 # ERP para taller mecanico
-##clonar repositorio
+## clonar repositorio
 git clone https://github.com/Eze0507/Backend-taller.git
 
-##crear entorno virtual
+## crear entorno virtual
 ### instalar virtualenv en la carpeta del proyecto
 pip install virtualenv
 virtualenv env
