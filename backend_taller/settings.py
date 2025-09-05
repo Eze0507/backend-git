@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'clientes_servicios',
     'finanzas_facturacion',
     'operaciones_inventario',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
