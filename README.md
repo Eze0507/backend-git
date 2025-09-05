@@ -11,14 +11,14 @@ virtualenv env
 ### activar En macOS/Linux
 source env/bin/activate
 
-##instalar dependencias
+## instalar dependencias
 pip install -r requirements.txt
 
-##Configura el proyecto:
+## Configura el proyecto:
 Crea un archivo .env en la raíz del proyecto y rellénalo siguiendo el archivo .env.example.
 
-##migraciones para la base de datos
+## migraciones para la base de datos
 python manage.py migrate
 
-##inicar servidor
+## inicar servidor
 python manage.py runserver
