@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Eliminar Cliente</title>
+</head>
+<body>
+    <h1>¿Estás seguro que quieres eliminar al cliente {{ cliente.nombre }}?</h1>
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit">Sí, eliminar</button>
+        <a href="{% url 'cliente_list' %}">Cancelar</a>
+    </form>
+</body>
+</html>

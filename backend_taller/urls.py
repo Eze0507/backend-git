@@ -17,10 +17,9 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 
-
-
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include('operaciones_inventario.urls')),  # Ajusta según la ruta de tu app
+    path('api/', include('operaciones_inventario.urls')),
     path('api/', include('personal_admin.urls')),
+    path('api/', include('clientes_servicios.urls')),  # tu carpeta, ahora bajo 'api/'
 ]
