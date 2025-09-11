@@ -6,6 +6,7 @@ from .models import Cargo
 from .serializers.serializers_user import UserSerializer, GroupAuxSerializer
 from .serializers.serializers_cargo import CargoSerializer
 from .serializers.serializers_rol import RoleSerializer  # <- tu serializer para roles
+from rest_framework.permissions import IsAuthenticated 
 
 
 # ---- ViewSets de tus compañeros ----
@@ -28,3 +29,4 @@ class CargoViewSet(viewsets.ModelViewSet):
 class RoleViewSet(viewsets.ModelViewSet):
     queryset = Group.objects.all().order_by('name')
     serializer_class = RoleSerializer
+    permission_classes = [IsAuthenticated]
