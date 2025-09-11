@@ -1,13 +1,20 @@
 # personal_admin/urls.py
-from django.urls import path
-from . import views
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import UserViewSet, GroupAuxViewSet, CargoViewSet, RoleViewSet
 
-app_name = 'personal_admin'
+app_name = 'personal_admin'  # ← añadido para evitar conflictos de nombres
+
+router = DefaultRouter()
+
+# Rutas de tus compañeros
+router.register(r'users', UserViewSet, basename='user')
+router.register(r'groupsAux', GroupAuxViewSet, basename='groupAux')
+router.register(r'cargos', CargoViewSet)
+
+# Tu nueva ruta para roles
+router.register(r'roles', RoleViewSet, basename='role')
 
 urlpatterns = [
-    path('roles/', views.RoleListView.as_view(), name='role-list'),
-    path('roles/crear/', views.RoleCreateView.as_view(), name='role-create'),
-    path('roles/<int:pk>/', views.RoleDetailView.as_view(), name='role-detail'),
-    path('roles/<int:pk>/editar/', views.RoleUpdateView.as_view(), name='role-edit'),
-    path('roles/<int:pk>/eliminar/', views.RoleDeleteView.as_view(), name='role-delete'),
+    path('', include(router.urls)),
 ]

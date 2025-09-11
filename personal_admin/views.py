@@ -1,43 +1,30 @@
-from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
-from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
-from django.urls import reverse_lazy
-from django.contrib.auth.models import Group
-from .forms import GroupForm
+# personal_admin/views.py
+from rest_framework import viewsets
+from django.contrib.auth.models import User, Group
+from .models import Cargo
 
-# LISTAR
-class RoleListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
-    permission_required = 'auth.view_group'
-    model = Group
-    template_name = 'personal_admin/role_list.html'
-    context_object_name = 'roles'
-    ordering = ['name']
+from .serializers.serializers_user import UserSerializer, GroupAuxSerializer
+from .serializers.serializers_cargo import CargoSerializer
+from .serializers.serializers_rol import RoleSerializer  # <- tu serializer para roles
 
-# DETALLE
-class RoleDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
-    permission_required = 'auth.view_group'
-    model = Group
-    template_name = 'personal_admin/role_detail.html'
-    context_object_name = 'role'
 
-# CREAR
-class RoleCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
-    permission_required = 'auth.add_group'
-    model = Group
-    form_class = GroupForm
-    template_name = 'personal_admin/role_form.html'
-    success_url = reverse_lazy('personal_admin:role-list')
+# ---- ViewSets de tus compañeros ----
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
 
-# EDITAR
-class RoleUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
-    permission_required = 'auth.change_group'
-    model = Group
-    form_class = GroupForm
-    template_name = 'personal_admin/role_form.html'
-    success_url = reverse_lazy('personal_admin:role-list')
 
-# ELIMINAR
-class RoleDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
-    permission_required = 'auth.delete_group'
-    model = Group
-    template_name = 'personal_admin/role_confirm_delete.html'
-    success_url = reverse_lazy('personal_admin:role-list')
+class GroupAuxViewSet(viewsets.ModelViewSet):
+    queryset = Group.objects.all()
+    serializer_class = GroupAuxSerializer
+
+
+class CargoViewSet(viewsets.ModelViewSet):
+    queryset = Cargo.objects.all()
+    serializer_class = CargoSerializer
+
+
+# ---- Tu nuevo ViewSet para Roles ----
+class RoleViewSet(viewsets.ModelViewSet):
+    queryset = Group.objects.all().order_by('name')
+    serializer_class = RoleSerializer
