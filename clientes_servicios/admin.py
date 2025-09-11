@@ -6,6 +6,8 @@ from .models import Cliente
 
 @admin.register(Cliente)
 class ClienteAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'apellido', 'nit', 'correo', 'telefono', 'tipo_cliente', 'activo', 'fecha_registro')
-    list_filter = ('tipo_cliente', 'activo')
-    search_fields = ('nombre', 'apellido', 'nit', 'correo', 'telefono')
+    list_display = ('id', 'nombre', 'apellido', 'get_correo', 'telefono', 'tipo_cliente')
+
+    def get_correo(self, obj):
+        return obj.usuario.email if obj.usuario else "-"
+    get_correo.short_description = 'Correo'

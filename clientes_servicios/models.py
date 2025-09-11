@@ -1,5 +1,4 @@
-
-# Create your models here.
+from django.conf import settings
 from django.db import models
 
 class Cliente(models.Model):
@@ -11,7 +10,6 @@ class Cliente(models.Model):
     nombre = models.CharField(max_length=100)
     apellido = models.CharField(max_length=100, blank=True)
     nit = models.CharField(max_length=20, unique=True, db_index=True)
-    correo = models.EmailField(blank=True, null=True)
     telefono = models.CharField(max_length=20, blank=True)
     direccion = models.CharField(max_length=200, blank=True)
     tipo_cliente = models.CharField(max_length=10, choices=TIPO_CHOICES, default='NATURAL')
@@ -19,8 +17,15 @@ class Cliente(models.Model):
     fecha_registro = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
 
-    # Borrado lógico para no perder histórico
     activo = models.BooleanField(default=True)
+
+    usuario = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='cliente'
+    )
 
     class Meta:
         ordering = ['-fecha_registro']
@@ -30,4 +35,5 @@ class Cliente(models.Model):
     def __str__(self):
         full = f"{self.nombre} {self.apellido}".strip()
         return f"{full} – {self.nit}"
+
 

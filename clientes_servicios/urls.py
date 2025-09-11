@@ -15,16 +15,13 @@ urlpatterns = [
     path('clientes/<int:pk>/eliminar/', views.cliente_delete, name='cliente_delete'),
 ]
 """
-from django.urls import path
-from . import views
+from rest_framework.routers import DefaultRouter
+from .views import ClienteViewSet
 
-urlpatterns = [
-    # API (para el front)
-    path('api/clientes/', views.cliente_list, name='api_cliente_list'),
-    path('api/clientes/<int:pk>/', views.cliente_detail, name='api_cliente_detail'),
+router = DefaultRouter()
+router.register(r'clientes', ClienteViewSet, basename='cliente')
 
-    # Si quieres mantener las vistas web antiguas, déjalas (opcional)
-    # path('clientes/', views.cliente_list_web, name='cliente_list_web'),
-    # ...
-]
+urlpatterns = router.urls
+
+
 
