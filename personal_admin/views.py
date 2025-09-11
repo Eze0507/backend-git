@@ -6,6 +6,9 @@ from django.contrib.auth.models import User, Group
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .models import Cargo
+from .serializers.serializers_cargo import CargoSerializer
+
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
@@ -21,3 +24,16 @@ class UserRegistrationView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class UserRegistrationView(APIView):
+    def post(self, request):
+        serializer = UserRegistrationSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CargoViewSet(viewsets.ModelViewSet):
+	queryset = Cargo.objects.all()
+	serializer_class = CargoSerializer
