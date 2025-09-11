@@ -7,15 +7,11 @@ class GroupAuxSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 class UserSerializer(serializers.ModelSerializer):
-    role = serializers.SlugRelatedField(
-        source='groups.first',
-        slug_field='name',
-        read_only=True
-    )
-    
+    role = serializers.SerializerMethodField(read_only=True)
     role_id = serializers.PrimaryKeyRelatedField(
         queryset=Group.objects.all(),
-        write_only=True
+        write_only=True,
+        required=False
     )
     
     class Meta:
@@ -30,6 +26,11 @@ class UserSerializer(serializers.ModelSerializer):
         if self.instance:
             self.fields['password'].required = False
 
+    def get_role(self, obj):
+        """Obtiene el rol del usuario de manera segura"""
+        first_group = obj.groups.first()
+        return first_group.name if first_group else None
+
     def validate_username(self, value):
         if " " in value:
             raise serializers.ValidationError("El nombre de usuario no puede tener espacios.")
@@ -38,8 +39,13 @@ class UserSerializer(serializers.ModelSerializer):
         return value
 
     def validate_email(self, value):
-        if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("Este email ya está en uso.")
+        # Excluir el usuario actual en caso de actualización
+        if self.instance:
+            if User.objects.filter(email=value).exclude(pk=self.instance.pk).exists():
+                raise serializers.ValidationError("Este email ya está en uso.")
+        else:
+            if User.objects.filter(email=value).exists():
+                raise serializers.ValidationError("Este email ya está en uso.")
         return value
 
     def validate_password(self, value):
@@ -50,6 +56,15 @@ class UserSerializer(serializers.ModelSerializer):
         if not any(char.isalpha() for char in value):
             raise serializers.ValidationError("La contraseña debe contener al menos una letra.")
         return value
+
+    def validate(self, data):
+        """Validación a nivel de serializer"""
+        # Al crear un usuario, el rol es obligatorio
+        if not self.instance and not data.get('role_id'):
+            raise serializers.ValidationError({
+                'role_id': 'Debe asignar un rol al usuario.'
+            })
+        return data
 
     def create(self, validated_data):
         group_data = validated_data.pop('role_id', None)

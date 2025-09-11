@@ -6,7 +6,7 @@ router = DefaultRouter()
 
 router.register(r'users', UserViewSet, basename='user')
 router.register(r'groupsAux', GroupAuxViewSet, basename='groupAux')
-router.register(r'cargos', CargoViewSet)
+router.register(r'cargos', CargoViewSet, basename= 'cargo')
 urlpatterns = [
     path('', include(router.urls)),
     path('register/', UserRegistrationView.as_view(), name='register'),
