@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from rest_framework import viewsets, status,generics
+from rest_framework import viewsets, status,filters, permissions,generics
 from .serializers.serializers_user import UserSerializer, GroupAuxSerializer
 from .serializers.serializers_register import UserRegistrationSerializer
 from django.contrib.auth.models import User, Group
@@ -13,14 +13,16 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from .serializers.serializers_rol import RoleSerializer 
 from rest_framework.permissions import IsAuthenticated 
+from personal_admin.models import Empleado
+from .serializers.serializers_empleado import EmpleadoReadSerializer, EmpleadoWriteSerializer
 
 from clientes_servicios.models import Cliente
-from personal_admin.serializers.serializers_profile import ProfileUpdateSerializer
+from personal_admin.serializers.serializers_profile import ProfileUpdateSerializer, EmpleadoProfileUpdateSerializer
 from rest_framework import permissions
-
 
 from rest_framework import status
 from .serializers.serializers_password import ChangePasswordSerializer
+from rest_framework.exceptions import NotFound
 
 # ---- ViewSets de tus compañeros ----
 class UserViewSet(viewsets.ModelViewSet):
@@ -84,22 +86,29 @@ class RoleViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
 
-
-# views.py
-
+#viewset para actualizar perfil cliente y empleado
 class ClienteProfileUpdateView(generics.RetrieveUpdateAPIView):
     queryset = Cliente.objects.all()
     serializer_class = ProfileUpdateSerializer
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
-        # Asegura que el usuario solo pueda actualizar su propio perfil de cliente
-        return self.request.user.cliente
-    
-    
-# views.py
+        try:
+            return Cliente.objects.get(usuario=self.request.user)
+        except Cliente.DoesNotExist:
+            raise NotFound("No existe perfil de cliente para este usuario.")
 
+class EmpleadoProfileUpdateView(generics.RetrieveUpdateAPIView):
+    serializer_class = EmpleadoProfileUpdateSerializer
+    permission_classes = [IsAuthenticated]
 
+    def get_object(self):
+        try:
+            return Empleado.objects.get(usuario=self.request.user)
+        except Empleado.DoesNotExist:
+            raise NotFound("No existe perfil de empleado para este usuario.")
+
+#viewset cambio de contraseña
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -120,3 +129,23 @@ class ChangePasswordView(APIView):
             return Response({"detail": "Contraseña actualizada exitosamente."}, status=status.HTTP_200_OK)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+# ---- Tu nuevo ViewSet para Empleados ----
+class IsStaffOrReadOnly(permissions.BasePermission):
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return request.user and request.user.is_authenticated
+        return request.user and request.user.is_staff
+
+class EmpleadoViewSet(viewsets.ModelViewSet):
+    queryset = Empleado.objects.select_related("cargo", "usuario").all()
+    permission_classes = [IsStaffOrReadOnly]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]  # puedes añadir DjangoFilterBackend si lo instalas
+    search_fields = ["nombre", "apellido", "ci", "telefono"]
+    ordering_fields = ["apellido", "nombre", "ci", "fecha_registro", "sueldo"]
+    ordering = ["apellido", "nombre"]
+
+    def get_serializer_class(self):
+        if self.action in ("create", "update", "partial_update"):
+            return EmpleadoWriteSerializer
+        return EmpleadoReadSerializer
+
