@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status,generics
 from .serializers.serializers_user import UserSerializer, GroupAuxSerializer
 from .serializers.serializers_register import UserRegistrationSerializer
 from django.contrib.auth.models import User, Group
@@ -14,6 +14,13 @@ from rest_framework_simplejwt.exceptions import TokenError
 from .serializers.serializers_rol import RoleSerializer 
 from rest_framework.permissions import IsAuthenticated 
 
+from clientes_servicios.models import Cliente
+from personal_admin.serializers.serializers_profile import ProfileUpdateSerializer
+from rest_framework import permissions
+
+
+from rest_framework import status
+from .serializers.serializers_password import ChangePasswordSerializer
 
 # ---- ViewSets de tus compañeros ----
 class UserViewSet(viewsets.ModelViewSet):
@@ -75,3 +82,41 @@ class RoleViewSet(viewsets.ModelViewSet):
     queryset = Group.objects.all().order_by('name')
     serializer_class = RoleSerializer
     permission_classes = [IsAuthenticated]
+
+
+
+# views.py
+
+class ClienteProfileUpdateView(generics.RetrieveUpdateAPIView):
+    queryset = Cliente.objects.all()
+    serializer_class = ProfileUpdateSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        # Asegura que el usuario solo pueda actualizar su propio perfil de cliente
+        return self.request.user.cliente
+    
+    
+# views.py
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = ChangePasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            user = request.user
+            # Verificar si la contraseña actual es correcta
+            if not user.check_password(serializer.data.get("old_password")):
+                return Response(
+                    {"old_password": ["Contraseña incorrecta."]}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Establecer la nueva contraseña
+            user.set_password(serializer.data.get("new_password"))
+            user.save()
+            return Response({"detail": "Contraseña actualizada exitosamente."}, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
