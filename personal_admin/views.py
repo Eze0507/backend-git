@@ -4,16 +4,22 @@ from .serializers.serializers_user import UserSerializer, GroupAuxSerializer
 from .serializers.serializers_register import UserRegistrationSerializer
 from django.contrib.auth.models import User, Group
 from .models import Cargo
+from .serializers.serializers_user import UserSerializer, GroupAuxSerializer
 from .serializers.serializers_cargo import CargoSerializer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
+from .serializers.serializers_rol import RoleSerializer 
+from rest_framework.permissions import IsAuthenticated 
 
+
+# ---- ViewSets de tus compañeros ----
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+
 
 class GroupAuxViewSet(viewsets.ModelViewSet):
     queryset = Group.objects.all()
@@ -60,5 +66,12 @@ class LogoutView(APIView):
 
 
 class CargoViewSet(viewsets.ModelViewSet):
-	queryset = Cargo.objects.all()
-	serializer_class = CargoSerializer
+    queryset = Cargo.objects.all()
+    serializer_class = CargoSerializer
+
+
+# ---- Tu nuevo ViewSet para Roles ----
+class RoleViewSet(viewsets.ModelViewSet):
+    queryset = Group.objects.all().order_by('name')
+    serializer_class = RoleSerializer
+    permission_classes = [IsAuthenticated]
