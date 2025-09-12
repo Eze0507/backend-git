@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'clientes_servicios',
     'finanzas_facturacion',
     'operaciones_inventario',
+    'django_filters', 
 
     # Paquetes externos
     'rest_framework',
@@ -39,9 +40,14 @@ INSTALLED_APPS = [
 
 # DRF / Authentication
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",   # Bearer
+        "rest_framework.authentication.SessionAuthentication",         # Login en admin/browsable
     ),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",  # todo requiere auth por defecto
+    ),
+    "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],
 }
 
 # JWT Configuration

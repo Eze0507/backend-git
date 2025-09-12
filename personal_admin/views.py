@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, filters, permissions
 from .serializers.serializers_user import UserSerializer, GroupAuxSerializer
 from .serializers.serializers_register import UserRegistrationSerializer
 from django.contrib.auth.models import User, Group
@@ -13,6 +13,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from .serializers.serializers_rol import RoleSerializer 
 from rest_framework.permissions import IsAuthenticated 
+from personal_admin.models import Empleado
+from .serializers.serializers_empleado import EmpleadoReadSerializer, EmpleadoWriteSerializer
 
 
 # ---- ViewSets de tus compañeros ----
@@ -75,3 +77,24 @@ class RoleViewSet(viewsets.ModelViewSet):
     queryset = Group.objects.all().order_by('name')
     serializer_class = RoleSerializer
     permission_classes = [IsAuthenticated]
+
+
+# ---- Tu nuevo ViewSet para Empleados ----
+class IsStaffOrReadOnly(permissions.BasePermission):
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return request.user and request.user.is_authenticated
+        return request.user and request.user.is_staff
+
+class EmpleadoViewSet(viewsets.ModelViewSet):
+    queryset = Empleado.objects.select_related("cargo", "usuario").all()
+    permission_classes = [IsStaffOrReadOnly]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]  # puedes añadir DjangoFilterBackend si lo instalas
+    search_fields = ["nombre", "apellido", "ci", "telefono"]
+    ordering_fields = ["apellido", "nombre", "ci", "fecha_registro", "sueldo"]
+    ordering = ["apellido", "nombre"]
+
+    def get_serializer_class(self):
+        if self.action in ("create", "update", "partial_update"):
+            return EmpleadoWriteSerializer
+        return EmpleadoReadSerializer
