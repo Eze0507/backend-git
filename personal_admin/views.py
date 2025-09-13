@@ -1,33 +1,46 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status,filters, permissions,generics
 from .serializers.serializers_user import UserSerializer, GroupAuxSerializer
+from django.db.models import ProtectedError
 from .serializers.serializers_register import UserRegistrationSerializer
 from django.contrib.auth.models import User, Group
 from .models import Cargo
-from .serializers.serializers_user import UserSerializer, GroupAuxSerializer
 from .serializers.serializers_cargo import CargoSerializer
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers.serializers_rol import RoleSerializer 
-from rest_framework.permissions import IsAuthenticated 
+from rest_framework.permissions import IsAuthenticated, AllowAny 
 from personal_admin.models import Empleado
 from .serializers.serializers_empleado import EmpleadoReadSerializer, EmpleadoWriteSerializer
-
 from clientes_servicios.models import Cliente
 from personal_admin.serializers.serializers_profile import ProfileUpdateSerializer, EmpleadoProfileUpdateSerializer
 from rest_framework import permissions
-
 from rest_framework import status
 from .serializers.serializers_password import ChangePasswordSerializer
 from rest_framework.exceptions import NotFound
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
+
 
 # ---- ViewSets de tus compañeros ----
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        try:
+            self.perform_destroy(instance)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except ProtectedError:
+            return Response(
+                {"detail": "No se puede eliminar este usuario porque está asociado a otros registros (como un cliente o empleado)."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
 
 
 class GroupAuxViewSet(viewsets.ModelViewSet):
@@ -36,11 +49,17 @@ class GroupAuxViewSet(viewsets.ModelViewSet):
 
 
 class UserRegistrationView(APIView):
+    permission_classes = [AllowAny] # <-- Añadido para permitir el acceso sin autenticación
+
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            user = serializer.save()
+            # Es mejor práctica devolver un mensaje de éxito en lugar de los datos del usuario.
+            return Response(
+                {"message": f"Usuario '{user.username}' creado exitosamente."},
+                status=status.HTTP_201_CREATED
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class LogoutView(APIView):
@@ -149,3 +168,13 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             return EmpleadoWriteSerializer
         return EmpleadoReadSerializer
 
+@method_decorator(csrf_exempt, name='dispatch')
+class CustomTokenObtainPairView(TokenObtainPairView):
+    pass
+
+@method_decorator(ensure_csrf_cookie, name='dispatch')
+class CSRFTokenView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response({ "detail": "CSRF cookie set" })

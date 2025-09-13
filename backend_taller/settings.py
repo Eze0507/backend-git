@@ -42,7 +42,6 @@ INSTALLED_APPS = [
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",   # Bearer
-        "rest_framework.authentication.SessionAuthentication",         # Login en admin/browsable
     ),
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",  # todo requiere auth por defecto
@@ -127,3 +126,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+# Permitir que el navegador envíe cookies en peticiones cross-origin
+CORS_ALLOW_CREDENTIALS = True
