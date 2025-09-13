@@ -15,7 +15,7 @@ class Empleado(models.Model):
         FEMENINO  = "F", "Femenino"
         OTRO      = "O", "Otro"
 
-    cargo   = models.ForeignKey('personal_admin.Cargo', on_delete=models.PROTECT, related_name='empleados')
+    cargo   = models.ForeignKey('personal_admin.Cargo', on_delete=models.CASCADE, related_name='empleados')
     usuario = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='empleado')
 
     nombre   = models.CharField(max_length=100)
