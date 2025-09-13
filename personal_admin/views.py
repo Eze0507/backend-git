@@ -29,6 +29,7 @@ from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -46,6 +47,7 @@ class UserViewSet(viewsets.ModelViewSet):
 class GroupAuxViewSet(viewsets.ModelViewSet):
     queryset = Group.objects.all()
     serializer_class = GroupAuxSerializer
+    permission_classes = [IsAuthenticated]
 
 
 class UserRegistrationView(APIView):
@@ -96,6 +98,7 @@ class LogoutView(APIView):
 class CargoViewSet(viewsets.ModelViewSet):
     queryset = Cargo.objects.all()
     serializer_class = CargoSerializer
+    permission_classes = [IsAuthenticated]
 
 
 # ---- Tu nuevo ViewSet para Roles ----
@@ -149,15 +152,15 @@ class ChangePasswordView(APIView):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 # ---- Tu nuevo ViewSet para Empleados ----
-class IsStaffOrReadOnly(permissions.BasePermission):
+class IsAuthenticatedOrReadOnly(permissions.BasePermission):
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
             return request.user and request.user.is_authenticated
-        return request.user and request.user.is_staff
+        return request.user and request.user.is_authenticated
 
 class EmpleadoViewSet(viewsets.ModelViewSet):
     queryset = Empleado.objects.select_related("cargo", "usuario").all()
-    permission_classes = [IsStaffOrReadOnly]
+    permission_classes = [IsAuthenticatedOrReadOnly]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]  # puedes añadir DjangoFilterBackend si lo instalas
     search_fields = ["nombre", "apellido", "ci", "telefono"]
     ordering_fields = ["apellido", "nombre", "ci", "fecha_registro", "sueldo"]

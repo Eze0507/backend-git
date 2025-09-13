@@ -1,5 +1,6 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q, IntegerField
 from .models import Cliente
 from .serializers.serializer_cliente import ClienteSerializer
@@ -13,6 +14,7 @@ class ClienteViewSet(viewsets.ModelViewSet):
     """
     queryset = Cliente.objects.filter(activo=True).order_by('nombre', 'apellido')
     serializer_class = ClienteSerializer
+    permission_classes = [IsAuthenticated]
 
     def list(self, request, *args, **kwargs):
         """Listar clientes con filtros y búsqueda"""
