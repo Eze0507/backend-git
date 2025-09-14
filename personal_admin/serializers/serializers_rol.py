@@ -12,19 +12,35 @@ class RoleSerializer(serializers.ModelSerializer):
         many=True,
         queryset=Permission.objects.all(),
         write_only=True,
-        source='permissions'  # se asignan a la relación Group.permissions
+        source='permissions'
     )
 
     class Meta:
         model = Group
         fields = ['id', 'name', 'permissions', 'permission_ids']
 
+    def create(self, validated_data):
+        # Obtener los permisos del validated_data
+        permissions_data = validated_data.pop('permissions', [])
+        
+        # Crear el grupo
+        group = Group.objects.create(**validated_data)
+        
+        # Asignar los permisos
+        if permissions_data:
+            group.permissions.set(permissions_data)
+        
+        return group
+
     def update(self, instance, validated_data):
-        permission_data = validated_data.pop('permissions', None)
-
-        # agregar nuevos permisos sin eliminar los existentes
-        if permission_data:
-            for perm in permission_data:
-                instance.permissions.add(perm)
-
-        return super().update(instance, validated_data)
+        # Obtener los permisos del validated_data
+        permissions_data = validated_data.pop('permissions', None)
+        
+        # Actualizar el grupo
+        instance = super().update(instance, validated_data)
+        
+        # Actualizar los permisos si se proporcionaron
+        if permissions_data is not None:
+            instance.permissions.set(permissions_data)
+        
+        return instance

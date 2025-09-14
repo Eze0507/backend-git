@@ -3,7 +3,7 @@ from rest_framework import viewsets, status,filters, permissions,generics
 from .serializers.serializers_user import UserSerializer, GroupAuxSerializer
 from django.db.models import ProtectedError
 from .serializers.serializers_register import UserRegistrationSerializer
-from django.contrib.auth.models import User, Group
+from django.contrib.auth.models import User, Group, Permission
 from .models import Cargo
 from .serializers.serializers_cargo import CargoSerializer
 from rest_framework.response import Response
@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers.serializers_rol import RoleSerializer 
+from .serializers.serializers_rol import RoleSerializer, PermissionSerializer 
 from rest_framework.permissions import IsAuthenticated, AllowAny 
 from personal_admin.models import Empleado
 from .serializers.serializers_empleado import EmpleadoReadSerializer, EmpleadoWriteSerializer
@@ -101,11 +101,14 @@ class CargoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
 
-# ---- Tu nuevo ViewSet para Roles ----
+# ---- ViewSets para Roles y Permisos ----
 class RoleViewSet(viewsets.ModelViewSet):
-    queryset = Group.objects.all().order_by('name')
+    queryset = Group.objects.all()
     serializer_class = RoleSerializer
-    permission_classes = [IsAuthenticated]
+
+class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Permission.objects.all()
+    serializer_class = PermissionSerializer
 
 
 #viewset para actualizar perfil cliente y empleado

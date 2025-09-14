@@ -10,6 +10,7 @@ from .views import (
     UserRegistrationView, 
     LogoutView, 
     RoleViewSet, 
+    PermissionViewSet,
     EmpleadoViewSet, 
     CSRFTokenView, 
     ClienteProfileUpdateView, 
@@ -24,10 +25,12 @@ router = DefaultRouter()
 
 # Rutas de tus compañeros
 router.register(r'users', UserViewSet, basename='user')
-router.register(r'groupsAux', GroupAuxViewSet, basename='groupAux')
 router.register(r'cargos', CargoViewSet, basename='cargo')
-router.register(r'roles', RoleViewSet, basename='role')
 router.register(r'empleados', EmpleadoViewSet, basename='empleado')
+
+# Rutas para Roles y Permisos
+router.register(r'groupsAux', RoleViewSet, basename='role')
+router.register(r'permissions', PermissionViewSet, basename='permission')
 
 
 urlpatterns = [
