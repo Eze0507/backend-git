@@ -14,7 +14,6 @@ class ClienteViewSet(viewsets.ModelViewSet):
     """
     queryset = Cliente.objects.filter(activo=True).order_by('nombre', 'apellido')
     serializer_class = ClienteSerializer
-    permission_classes = [IsAuthenticated]
 
 
     def destroy(self, request, *args, **kwargs):
