@@ -1,7 +1,8 @@
 from rest_framework import serializers
-from .models import Marca
+from .models import Inventario
 
-class MarcaSerializer(serializers.ModelSerializer):
+
+class InventarioSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Marca
-        fields = ['id', 'nombre', 'logo_url', 'pais_origen']
+        model = Inventario
+        fields = ['id', 'categoria', 'codigo', 'descripcion', 'fabricante', 'imagen', 'nombre', 'precio', 'stock', 'tipo']
