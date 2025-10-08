@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from operaciones_inventario.models import Inventario
+from operaciones_inventario.modelsInventario import Inventario
 
 class InventarioSerializer(serializers.ModelSerializer):
     class Meta:

@@ -1,6 +1,6 @@
 
 from django.contrib import admin
-from .models import Inventario
+from .modelsInventario import Inventario
 
 @admin.register(Inventario)
 class InventarioAdmin(admin.ModelAdmin):
