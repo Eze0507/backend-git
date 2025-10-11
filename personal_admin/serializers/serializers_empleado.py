@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from personal_admin.models import Empleado, Cargo  # Asegúrate de tener el modelo Empleado creado
+from personal_admin.models import Empleado, Cargo
+from operaciones_inventario.modelsArea import Area
 
 class CargoMiniSerializer(serializers.ModelSerializer):
     class Meta:
@@ -12,16 +13,22 @@ class UserMiniSerializer(serializers.ModelSerializer):
         model = User
         fields = ("id", "username", "email", "is_active")
 
+class AreaMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Area
+        fields = ("id", "nombre")
+
 class EmpleadoReadSerializer(serializers.ModelSerializer):
     cargo = CargoMiniSerializer(read_only=True)
     usuario = UserMiniSerializer(read_only=True)
+    area = AreaMiniSerializer(read_only=True)
 
     class Meta:
         model = Empleado
         fields = (
             "id", "nombre", "apellido", "ci", "direccion", "telefono", "sexo",
             "sueldo", "estado", "fecha_registro", "fecha_actualizado",
-            "cargo", "usuario"
+            "cargo", "usuario", "area"
         )
 
 class EmpleadoWriteSerializer(serializers.ModelSerializer):
@@ -32,12 +39,15 @@ class EmpleadoWriteSerializer(serializers.ModelSerializer):
         queryset=User.objects.all(), source="usuario",
         write_only=True, allow_null=True, required=False
     )
+    area_id = serializers.PrimaryKeyRelatedField(
+        queryset=Empleado._meta.get_field('area').related_model.objects.all(), source="area", write_only=True, allow_null=True, required=False
+    )
 
     class Meta:
         model = Empleado
         fields = (
             "nombre", "apellido", "ci", "direccion", "telefono", "sexo",
-            "sueldo", "estado", "cargo_id", "usuario_id"
+            "sueldo", "estado", "cargo_id", "usuario_id", "area_id"
         )
 
     def validate(self, attrs):
