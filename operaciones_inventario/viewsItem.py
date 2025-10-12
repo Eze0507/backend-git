@@ -5,6 +5,8 @@ from django.conf import settings
 import requests
 from operaciones_inventario.modelsItem import Item
 from operaciones_inventario.serializers.serializerItem import ItemSerializer
+from personal_admin.views import registrar_bitacora
+from personal_admin.models import Bitacora
 
 class ItemViewSet(viewsets.ModelViewSet):
     queryset = Item.objects.all()
@@ -59,10 +61,43 @@ class ItemViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(data=data)
 
         if serializer.is_valid():
-            serializer.save()
+            instance = serializer.save()
+            
+            # Registrar en bitácora
+            if is_update:
+                descripcion = f"Item '{instance.nombre}' actualizado con código '{instance.codigo}'"
+                accion = Bitacora.Accion.EDITAR
+            else:
+                descripcion = f"Item '{instance.nombre}' creado con código '{instance.codigo}'"
+                accion = Bitacora.Accion.CREAR
+            
+            registrar_bitacora(
+                usuario=request.user,
+                accion=accion,
+                modulo=Bitacora.Modulo.ITEM,
+                descripcion=descripcion,
+                request=request
+            )
+            
             return Response(serializer.data, status=status.HTTP_201_CREATED if not is_update else status.HTTP_200_OK)
         else:
             return Response(
                 {"error": "Datos inválidos", "details": serializer.errors}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        
+        # Registrar en bitácora antes de eliminar
+        descripcion = f"Item '{instance.nombre}' eliminado con código '{instance.codigo}'"
+        registrar_bitacora(
+            usuario=request.user,
+            accion=Bitacora.Accion.ELIMINAR,
+            modulo=Bitacora.Modulo.ITEM,
+            descripcion=descripcion,
+            request=request
+        )
+        
+        # Llamar al método destroy del padre
+        return super().destroy(request, *args, **kwargs)
