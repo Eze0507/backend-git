@@ -27,7 +27,7 @@ class Item(models.Model):
 		('No disponible', 'No disponible'),
 	]
 	estado = models.CharField(max_length=15, choices=ESTADO_CHOICES, default='Disponible')
-	area = models.ForeignKey('operaciones_inventario.Area', on_delete=models.CASCADE, related_name='items',null=True,blank=True)
+	area = models.ForeignKey('operaciones_inventario.Area', on_delete=models.SET_NULL, related_name='items',null=True,blank=True)
 
 	def __str__(self):
 		return f"{self.nombre} ({self.codigo})"
