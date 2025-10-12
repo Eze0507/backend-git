@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_seed',
 
     # Tus apps
     'personal_admin',
@@ -127,3 +128,4 @@ CSRF_TRUSTED_ORIGINS = [
 
 # Permitir que el navegador envíe cookies en peticiones cross-origin
 CORS_ALLOW_CREDENTIALS = True
+API_KEY_IMGBB= config('API_KEY_IMGBB', default='')

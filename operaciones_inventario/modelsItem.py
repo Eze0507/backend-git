@@ -16,12 +16,18 @@ class Item(models.Model):
 		('Disponible', 'Disponible'),
 		('No disponible', 'No disponible'),
 	]
+	
 	fabricante = models.CharField(max_length=100,blank=True, null=True)
 	precio = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True)
+	costo = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True)
 	stock = models.PositiveIntegerField(blank=True, null=True)
 	imagen = models.URLField(blank=True, null=True)	
+	ESTADO_CHOICES = [
+		('Disponible', 'Disponible'),
+		('No disponible', 'No disponible'),
+	]
 	estado = models.CharField(max_length=15, choices=ESTADO_CHOICES, default='Disponible')
-	area = models.ForeignKey('operaciones_inventario.Area', on_delete=models.CASCADE, related_name='items')
+	area = models.ForeignKey('operaciones_inventario.Area', on_delete=models.CASCADE, related_name='items',null=True,blank=True)
 
 	def __str__(self):
 		return f"{self.nombre} ({self.codigo})"

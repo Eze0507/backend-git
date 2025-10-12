@@ -109,6 +109,41 @@ class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 #viewset para actualizar perfil cliente y empleado
+class UserProfileView(APIView):
+    """Vista unificada para obtener el perfil del usuario autenticado"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        
+        # Intentar encontrar si es empleado
+        try:
+            empleado = Empleado.objects.get(usuario=user)
+            serializer = EmpleadoProfileUpdateSerializer(empleado)
+            return Response({
+                'type': 'empleado',
+                'data': serializer.data
+            })
+        except Empleado.DoesNotExist:
+            pass
+        
+        # Intentar encontrar si es cliente
+        try:
+            cliente = Cliente.objects.get(usuario=user)
+            serializer = ProfileUpdateSerializer(cliente)
+            return Response({
+                'type': 'cliente', 
+                'data': serializer.data
+            })
+        except Cliente.DoesNotExist:
+            pass
+            
+        # Si no es ni empleado ni cliente
+        return Response({
+            'error': 'Usuario sin perfil asociado',
+            'detail': 'El usuario no tiene un perfil de empleado o cliente'
+        }, status=status.HTTP_404_NOT_FOUND)
+
 class ClienteProfileUpdateView(generics.RetrieveUpdateAPIView):
     queryset = Cliente.objects.all()
     serializer_class = ProfileUpdateSerializer
@@ -119,6 +154,15 @@ class ClienteProfileUpdateView(generics.RetrieveUpdateAPIView):
             return Cliente.objects.get(usuario=self.request.user)
         except Cliente.DoesNotExist:
             raise NotFound("No existe perfil de cliente para este usuario.")
+            
+    def handle_exception(self, exc):
+        """Manejar excepciones de manera más amigable"""
+        if isinstance(exc, NotFound):
+            return Response(
+                {"error": "Perfil no encontrado", "detail": str(exc)},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        return super().handle_exception(exc)
 
 class EmpleadoProfileUpdateView(generics.RetrieveUpdateAPIView):
     serializer_class = EmpleadoProfileUpdateSerializer
@@ -129,6 +173,15 @@ class EmpleadoProfileUpdateView(generics.RetrieveUpdateAPIView):
             return Empleado.objects.get(usuario=self.request.user)
         except Empleado.DoesNotExist:
             raise NotFound("No existe perfil de empleado para este usuario.")
+            
+    def handle_exception(self, exc):
+        """Manejar excepciones de manera más amigable"""
+        if isinstance(exc, NotFound):
+            return Response(
+                {"error": "Perfil no encontrado", "detail": str(exc)},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        return super().handle_exception(exc)
 
 #viewset cambio de contraseña
 class ChangePasswordView(APIView):

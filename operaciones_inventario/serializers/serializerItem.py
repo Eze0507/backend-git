@@ -8,7 +8,7 @@ class ItemSerializer(serializers.ModelSerializer):
         model = Item
         fields = [
             'id', 'codigo', 'nombre', 'descripcion', 'tipo', 'fabricante',
-            'precio', 'stock', 'imagen', 'estado', 'area_nombre'
+            'precio', 'costo', 'stock', 'imagen', 'estado', 'area', 'area_nombre'
         ]
        
 

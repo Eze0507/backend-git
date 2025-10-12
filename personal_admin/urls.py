@@ -16,7 +16,8 @@ from .views import (
     ClienteProfileUpdateView, 
     EmpleadoProfileUpdateView,
     ChangePasswordView, 
-    CustomTokenObtainPairView
+    CustomTokenObtainPairView,
+    UserProfileView
 )
 
 app_name = 'personal_admin'  # ← añadido para evitar conflictos de nombres
@@ -41,6 +42,7 @@ urlpatterns = [
     path("csrf/", CSRFTokenView.as_view(), name="csrf-token"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
+    path('profile/', UserProfileView.as_view(), name='user-profile'),  # Nueva vista unificada
     path('cliente/profile/', ClienteProfileUpdateView.as_view(), name='cliente-profile-update'),
     path('empleado/profile/', EmpleadoProfileUpdateView.as_view(), name='empleado-profile-update'),
 ]
