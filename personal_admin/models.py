@@ -40,3 +40,39 @@ class Empleado(models.Model):
 
     def __str__(self):
         return f"{self.apellido}, {self.nombre} ({self.ci})"
+
+class Bitacora(models.Model):
+    class Accion(models.TextChoices):
+        CREAR = "CREAR", "Crear"
+        EDITAR = "EDITAR", "Editar"
+        ELIMINAR = "ELIMINAR", "Eliminar"
+        LOGIN = "LOGIN", "Iniciar Sesión"
+        LOGOUT = "LOGOUT", "Cerrar Sesión"
+    
+    class Modulo(models.TextChoices):
+        CARGO = "Cargo", "Cargo"
+        CLIENTE = "Cliente", "Cliente"
+        EMPLEADO = "Empleado", "Empleado"
+        VEHICULO = "Vehiculo", "Vehículo"
+        AUTENTICACION = "Autenticacion", "Autenticación"
+    
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bitacoras')
+    accion = models.CharField(max_length=20, choices=Accion.choices)
+    modulo = models.CharField(max_length=20, choices=Modulo.choices)
+    descripcion = models.TextField()
+    ip_address = models.GenericIPAddressField(verbose_name="Dirección IP", null=True, blank=True)
+    fecha_accion = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = "bitacora"
+        indexes = [
+            models.Index(fields=["usuario"]),
+            models.Index(fields=["fecha_accion"]),
+            models.Index(fields=["modulo"]),
+            models.Index(fields=["ip_address"]),
+        ]
+        ordering = ["-fecha_accion"]
+    
+    def __str__(self):
+        ip_info = f" desde {self.ip_address}" if self.ip_address else ""
+        return f"{self.usuario.username} - {self.accion} en {self.modulo}{ip_info} ({self.fecha_accion})"
