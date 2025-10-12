@@ -17,7 +17,7 @@ class Empleado(models.Model):
         OTRO      = "O", "Otro"
     cargo   = models.ForeignKey('personal_admin.Cargo', on_delete=models.CASCADE, related_name='empleados')
     usuario = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='empleado')
-    area = models.ForeignKey('operaciones_inventario.Area', on_delete=models.CASCADE, related_name='empleados',null=True, blank=True)
+    area = models.ForeignKey('operaciones_inventario.Area', on_delete=models.SET_NULL, related_name='empleados',null=True, blank=True)
 
     nombre   = models.CharField(max_length=100)
     apellido = models.CharField(max_length=100)
