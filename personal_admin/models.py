@@ -60,6 +60,7 @@ class Bitacora(models.Model):
     accion = models.CharField(max_length=20, choices=Accion.choices)
     modulo = models.CharField(max_length=20, choices=Modulo.choices)
     descripcion = models.TextField()
+    ip_address = models.GenericIPAddressField(verbose_name="Dirección IP", null=True, blank=True)
     fecha_accion = models.DateTimeField(auto_now_add=True)
     
     class Meta:
@@ -68,8 +69,10 @@ class Bitacora(models.Model):
             models.Index(fields=["usuario"]),
             models.Index(fields=["fecha_accion"]),
             models.Index(fields=["modulo"]),
+            models.Index(fields=["ip_address"]),
         ]
         ordering = ["-fecha_accion"]
     
     def __str__(self):
-        return f"{self.usuario.username} - {self.accion} en {self.modulo} ({self.fecha_accion})"
+        ip_info = f" desde {self.ip_address}" if self.ip_address else ""
+        return f"{self.usuario.username} - {self.accion} en {self.modulo}{ip_info} ({self.fecha_accion})"

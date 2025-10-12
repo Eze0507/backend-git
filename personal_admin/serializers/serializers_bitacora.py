@@ -16,6 +16,7 @@ class BitacoraSerializer(serializers.ModelSerializer):
             'accion',
             'modulo',
             'descripcion',
+            'ip_address',
             'fecha_accion'
         ]
         read_only_fields = ['id', 'fecha_accion']

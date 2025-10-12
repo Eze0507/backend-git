@@ -47,7 +47,8 @@ class UserViewSet(viewsets.ModelViewSet):
             usuario=self.request.user,
             accion=Bitacora.Accion.CREAR,
             modulo=Bitacora.Modulo.AUTENTICACION,
-            descripcion=descripcion
+            descripcion=descripcion,
+            request=self.request
         )
     
     def perform_update(self, serializer):
@@ -85,7 +86,8 @@ class UserViewSet(viewsets.ModelViewSet):
             usuario=self.request.user,
             accion=Bitacora.Accion.EDITAR,
             modulo=Bitacora.Modulo.AUTENTICACION,
-            descripcion=descripcion
+            descripcion=descripcion,
+            request=self.request
         )
     
     def perform_destroy(self, instance):
@@ -106,7 +108,8 @@ class UserViewSet(viewsets.ModelViewSet):
             usuario=self.request.user,
             accion=Bitacora.Accion.ELIMINAR,
             modulo=Bitacora.Modulo.AUTENTICACION,
-            descripcion=descripcion
+            descripcion=descripcion,
+            request=self.request
         )
 
     def destroy(self, request, *args, **kwargs):
@@ -157,7 +160,8 @@ class LogoutView(APIView):
                     usuario=request.user,
                     accion=Bitacora.Accion.LOGOUT,
                     modulo=Bitacora.Modulo.AUTENTICACION,
-                    descripcion=f"Usuario {request.user.username} cerró sesión exitosamente"
+                    descripcion=f"Usuario {request.user.username} cerró sesión exitosamente",
+                    request=request
                 )
                 
                 return Response(
@@ -204,7 +208,8 @@ class RoleViewSet(viewsets.ModelViewSet):
             usuario=self.request.user,
             accion=Bitacora.Accion.CREAR,
             modulo=Bitacora.Modulo.AUTENTICACION,
-            descripcion=descripcion
+            descripcion=descripcion,
+            request=self.request
         )
     
     def perform_update(self, serializer):
@@ -236,7 +241,8 @@ class RoleViewSet(viewsets.ModelViewSet):
             usuario=self.request.user,
             accion=Bitacora.Accion.EDITAR,
             modulo=Bitacora.Modulo.AUTENTICACION,
-            descripcion=descripcion
+            descripcion=descripcion,
+            request=self.request
         )
     
     def perform_destroy(self, instance):
@@ -255,7 +261,8 @@ class RoleViewSet(viewsets.ModelViewSet):
             usuario=self.request.user,
             accion=Bitacora.Accion.ELIMINAR,
             modulo=Bitacora.Modulo.AUTENTICACION,
-            descripcion=descripcion
+            descripcion=descripcion,
+            request=self.request
         )
 
 class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -338,7 +345,8 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             usuario=self.request.user,
             accion=Bitacora.Accion.CREAR,
             modulo=Bitacora.Modulo.EMPLEADO,
-            descripcion=descripcion
+            descripcion=descripcion,
+            request=self.request
         )
     
     def perform_update(self, serializer):
@@ -380,7 +388,8 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             usuario=self.request.user,
             accion=Bitacora.Accion.EDITAR,
             modulo=Bitacora.Modulo.EMPLEADO,
-            descripcion=descripcion
+            descripcion=descripcion,
+            request=self.request
         )
     
     def perform_destroy(self, instance):
@@ -402,7 +411,8 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             usuario=self.request.user,
             accion=Bitacora.Accion.ELIMINAR,
             modulo=Bitacora.Modulo.EMPLEADO,
-            descripcion=descripcion
+            descripcion=descripcion,
+            request=self.request
         )
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -424,7 +434,8 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                     usuario=user,
                     accion=Bitacora.Accion.LOGIN,
                     modulo=Bitacora.Modulo.AUTENTICACION,
-                    descripcion=f"Usuario {username} inició sesión exitosamente"
+                    descripcion=f"Usuario {username} inició sesión exitosamente",
+                    request=request
                 )
             except User.DoesNotExist:
                 # Si no se encuentra el usuario, registrar con información limitada
@@ -432,7 +443,8 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                     usuario=None,  # No hay usuario autenticado aún
                     accion=Bitacora.Accion.LOGIN,
                     modulo=Bitacora.Modulo.AUTENTICACION,
-                    descripcion=f"Intento de login con username: {username}"
+                    descripcion=f"Intento de login con username: {username}",
+                    request=request
                 )
             except Exception as e:
                 # No fallar la autenticación por errores en bitácora
@@ -447,8 +459,26 @@ class CSRFTokenView(APIView):
     def get(self, request):
         return Response({ "detail": "CSRF cookie set" })
 
+# ---- Función auxiliar para obtener IP ----
+def get_client_ip(request):
+    """
+    Obtiene la dirección IP del cliente desde el request.
+    Maneja proxies y headers de X-Forwarded-For.
+    """
+    if not request:
+        return None
+    
+    # Verificar headers de proxy
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0].strip()
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    
+    return ip
+
 # ---- Función para registrar bitácora ----
-def registrar_bitacora(usuario, accion, modulo, descripcion):
+def registrar_bitacora(usuario, accion, modulo, descripcion, request=None, ip_address=None):
     """
     Función para registrar acciones en la bitácora del sistema.
     
@@ -457,6 +487,8 @@ def registrar_bitacora(usuario, accion, modulo, descripcion):
         accion: String con la acción realizada (CREAR, EDITAR, ELIMINAR, LOGIN, LOGOUT)
         modulo: String con el módulo afectado (Cargo, Cliente, Empleado, Vehiculo, Autenticacion)
         descripcion: String con descripción detallada de la acción
+        request: Objeto request de Django (opcional, para obtener IP automáticamente)
+        ip_address: String con la dirección IP (opcional, si no se proporciona request)
     
     Returns:
         bool: True si se registró exitosamente, False si hubo error
@@ -476,11 +508,16 @@ def registrar_bitacora(usuario, accion, modulo, descripcion):
             )
             usuario = usuario_temp
         
+        # Obtener IP address
+        if not ip_address and request:
+            ip_address = get_client_ip(request)
+        
         Bitacora.objects.create(
             usuario=usuario,
             accion=accion,
             modulo=modulo,
-            descripcion=descripcion
+            descripcion=descripcion,
+            ip_address=ip_address
         )
         return True
     except Exception as e:
@@ -497,7 +534,7 @@ class BitacoraViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Bitacora.objects.select_related('usuario').all()
     serializer_class = BitacoraSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['descripcion', 'usuario__username', 'usuario__email']
+    search_fields = ['descripcion', 'usuario__username', 'usuario__email', 'ip_address']
     ordering_fields = ['fecha_accion', 'usuario__username', 'modulo', 'accion']
     ordering = ['-fecha_accion']  # Más recientes primero
     
@@ -519,6 +556,11 @@ class BitacoraViewSet(viewsets.ReadOnlyModelViewSet):
         usuario_id = self.request.query_params.get('usuario', None)
         if usuario_id:
             queryset = queryset.filter(usuario_id=usuario_id)
+        
+        # Filtro por IP
+        ip_filter = self.request.query_params.get('ip_filter', None)
+        if ip_filter:
+            queryset = queryset.filter(ip_address__icontains=ip_filter)
         
         # Filtro por fecha desde
         fecha_desde = self.request.query_params.get('fecha_desde', None)

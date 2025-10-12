@@ -29,7 +29,8 @@ class ClienteViewSet(viewsets.ModelViewSet):
             usuario=self.request.user,
             accion=Bitacora.Accion.CREAR,
             modulo=Bitacora.Modulo.CLIENTE,
-            descripcion=descripcion
+            descripcion=descripcion,
+            request=self.request
         )
     
     def perform_update(self, serializer):
@@ -65,7 +66,8 @@ class ClienteViewSet(viewsets.ModelViewSet):
             usuario=self.request.user,
             accion=Bitacora.Accion.EDITAR,
             modulo=Bitacora.Modulo.CLIENTE,
-            descripcion=descripcion
+            descripcion=descripcion,
+            request=self.request
         )
     
     def perform_destroy(self, instance):
@@ -87,7 +89,8 @@ class ClienteViewSet(viewsets.ModelViewSet):
             usuario=self.request.user,
             accion=Bitacora.Accion.ELIMINAR,
             modulo=Bitacora.Modulo.CLIENTE,
-            descripcion=descripcion
+            descripcion=descripcion,
+            request=self.request
         )
 
     def destroy(self, request, *args, **kwargs):
