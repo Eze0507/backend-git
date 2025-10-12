@@ -12,9 +12,14 @@ class MarcaSerializer(serializers.ModelSerializer):
 
 class ModeloSerializer(serializers.ModelSerializer):
     """Serializer para el modelo Modelo"""
+    marca_nombre = serializers.SerializerMethodField()
+    
     class Meta:
         model = Modelo
-        fields = ['id', 'nombre']
+        fields = ['id', 'nombre', 'marca', 'marca_nombre']
+    
+    def get_marca_nombre(self, obj):
+        return obj.marca.nombre if obj.marca else None
 
 
 class ClienteSerializer(serializers.ModelSerializer):
@@ -90,6 +95,13 @@ class VehiculoCreateUpdateSerializer(serializers.ModelSerializer):
             'numero_placa', 'tipo', 'version', 'color', 'año', 
             'cilindrada', 'tipo_combustible'
         ]
+        error_messages = {
+            'numero_placa': {
+                'unique': 'Ya existe un vehículo con este número de placa.',
+                'blank': 'El número de placa es obligatorio.',
+                'null': 'El número de placa es obligatorio.',
+            }
+        }
     
     def validate_numero_placa(self, value):
         """Validación personalizada para el número de placa"""
