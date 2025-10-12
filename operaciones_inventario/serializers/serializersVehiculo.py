@@ -91,7 +91,7 @@ class VehiculoCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vehiculo
         fields = [
-            'cliente', 'marca', 'modelo', 'vin', 'numero_motor', 
+            'id', 'cliente', 'marca', 'modelo', 'vin', 'numero_motor', 
             'numero_placa', 'tipo', 'version', 'color', 'año', 
             'cilindrada', 'tipo_combustible'
         ]

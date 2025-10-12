@@ -3,6 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q
 from .modelsVehiculos import Vehiculo, Marca, Modelo
+from personal_admin.views import registrar_bitacora
+from personal_admin.models import Bitacora
 from .serializers.serializersVehiculo import (
     VehiculoListSerializer, 
     VehiculoDetailSerializer, 
@@ -66,8 +68,87 @@ class VehiculoViewSet(viewsets.ModelViewSet):
                 Q(cliente__apellido__icontains=search) |
                 Q(marca__nombre__icontains=search) |
                 Q(modelo__nombre__icontains=search)
-            )    
+            )
         return queryset.order_by('-fecha_registro')
+    
+    def create(self, request, *args, **kwargs):
+        """Crear un nuevo vehículo con registro en bitácora"""
+        response = super().create(request, *args, **kwargs)
+        
+        if response.status_code == status.HTTP_201_CREATED:
+            # Obtener el vehículo creado usando el serializer para obtener el ID
+            vehiculo_id = response.data.get('id') or response.data.get('pk')
+            if vehiculo_id:
+                vehiculo = Vehiculo.objects.get(id=vehiculo_id)
+                marca_nombre = vehiculo.marca.nombre if vehiculo.marca else "Sin marca"
+                modelo_nombre = vehiculo.modelo.nombre if vehiculo.modelo else "Sin modelo"
+                cliente_nombre = f"{vehiculo.cliente.nombre} {vehiculo.cliente.apellido}" if vehiculo.cliente else "Sin cliente"
+                
+                descripcion = f"Vehículo '{vehiculo.numero_placa}' creado - Marca: {marca_nombre}, Modelo: {modelo_nombre}, Cliente: {cliente_nombre}, Color: {vehiculo.color or 'No especificado'}, Año: {vehiculo.año or 'No especificado'}"
+                
+                registrar_bitacora(
+                    usuario=request.user,
+                    accion=Bitacora.Accion.CREAR,
+                    modulo=Bitacora.Modulo.VEHICULO,
+                    descripcion=descripcion,
+                    request=request
+                )
+        
+        return response
+    
+    def update(self, request, *args, **kwargs):
+        """Actualizar un vehículo con registro en bitácora"""
+        # Obtener el ID del vehículo antes de la actualización
+        vehiculo_id = kwargs.get('pk')
+        
+        response = super().update(request, *args, **kwargs)
+        
+        if response.status_code == status.HTTP_200_OK and vehiculo_id:
+            try:
+                # Obtener el vehículo actualizado desde la base de datos
+                vehiculo = Vehiculo.objects.get(id=vehiculo_id)
+                marca_nombre = vehiculo.marca.nombre if vehiculo.marca else "Sin marca"
+                modelo_nombre = vehiculo.modelo.nombre if vehiculo.modelo else "Sin modelo"
+                cliente_nombre = f"{vehiculo.cliente.nombre} {vehiculo.cliente.apellido}" if vehiculo.cliente else "Sin cliente"
+                
+                descripcion = f"Vehículo '{vehiculo.numero_placa}' actualizado - Marca: {marca_nombre}, Modelo: {modelo_nombre}, Cliente: {cliente_nombre}, Color: {vehiculo.color or 'No especificado'}, Año: {vehiculo.año or 'No especificado'}"
+                
+                registrar_bitacora(
+                    usuario=request.user,
+                    accion=Bitacora.Accion.EDITAR,
+                    modulo=Bitacora.Modulo.VEHICULO,
+                    descripcion=descripcion,
+                    request=request
+                )
+            except Vehiculo.DoesNotExist:
+                # Si no se puede obtener el vehículo, no registrar en bitácora
+                pass
+        
+        return response
+    
+    def destroy(self, request, *args, **kwargs):
+        """Eliminar un vehículo con registro en bitácora"""
+        vehiculo = self.get_object()
+        placa = vehiculo.numero_placa
+        marca_nombre = vehiculo.marca.nombre if vehiculo.marca else "Sin marca"
+        modelo_nombre = vehiculo.modelo.nombre if vehiculo.modelo else "Sin modelo"
+        cliente_nombre = f"{vehiculo.cliente.nombre} {vehiculo.cliente.apellido}" if vehiculo.cliente else "Sin cliente"
+        
+        response = super().destroy(request, *args, **kwargs)
+        
+        if response.status_code == status.HTTP_204_NO_CONTENT:
+            descripcion = f"Vehículo '{placa}' eliminado - Marca: {marca_nombre}, Modelo: {modelo_nombre}, Cliente: {cliente_nombre}, Color: {vehiculo.color or 'No especificado'}, Año: {vehiculo.año or 'No especificado'}"
+            
+            registrar_bitacora(
+                usuario=request.user,
+                accion=Bitacora.Accion.ELIMINAR,
+                modulo=Bitacora.Modulo.VEHICULO,
+                descripcion=descripcion,
+                request=request
+            )
+        
+        return response
+    
     @action(detail=False, methods=['get'])
     def marcas(self, request):
         """
