@@ -17,6 +17,7 @@ from .views import (
     EmpleadoProfileUpdateView,
     ChangePasswordView, 
     CustomTokenObtainPairView,
+    BitacoraViewSet,
     UserProfileView
 )
 
@@ -32,6 +33,9 @@ router.register(r'empleados', EmpleadoViewSet, basename='empleado')
 # Rutas para Roles y Permisos
 router.register(r'groupsAux', RoleViewSet, basename='role')
 router.register(r'permissions', PermissionViewSet, basename='permission')
+
+# Ruta para Bitácora
+router.register(r'bitacora', BitacoraViewSet, basename='bitacora')
 
 
 urlpatterns = [

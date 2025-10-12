@@ -18,19 +18,40 @@ class Marca(models.Model):
 
 class Modelo(models.Model):
     """Modelo para los modelos de vehículos"""
+    marca = models.ForeignKey(
+        Marca,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='modelos'
+    )
     nombre = models.CharField(max_length=80, unique=True, null=False, blank=False)
     
     class Meta:
-        ordering = ['nombre']
+        ordering = ['marca__nombre', 'nombre']
         verbose_name = 'Modelo'
         verbose_name_plural = 'Modelos'
     
     def __str__(self):
+        if self.marca:
+            return f"{self.marca.nombre} {self.nombre}"
         return self.nombre
 
 
 class Vehiculo(models.Model):
     """Modelo para los vehículos"""
+    
+    # Choices para el tipo de vehículo
+    TIPO_CHOICES = [
+        ('CAMIONETA', 'Camioneta'),
+        ('DEPORTIVO', 'Deportivo'),
+        ('FURGON', 'Furgón'),
+        ('HATCHBACK', 'Hatchback'),
+        ('SEDAN', 'Sedán'),
+        ('SUV', 'SUV'),
+        ('CITYCAR', 'CityCar'),
+    ]
+    
     cliente = models.ForeignKey(
         Cliente, 
         on_delete=models.CASCADE, 
@@ -61,9 +82,20 @@ class Vehiculo(models.Model):
         unique=True, 
         null=False, 
         blank=False,
-        verbose_name='Número de Placa'
+        verbose_name='Número de Placa',
+        error_messages={
+            'unique': 'Ya existe un vehículo con este número de placa.',
+            'blank': 'El número de placa es obligatorio.',
+            'null': 'El número de placa es obligatorio.',
+        }
     )
-    tipo = models.CharField(max_length=40, blank=True, null=True)
+    tipo = models.CharField(
+        max_length=20, 
+        choices=TIPO_CHOICES, 
+        blank=True, 
+        null=True,
+        verbose_name='Tipo de Vehículo'
+    )
     version = models.CharField(max_length=40, blank=True, null=True, verbose_name='Versión')
     color = models.CharField(max_length=30, blank=True, null=True)
     año = models.SmallIntegerField(
