@@ -33,11 +33,11 @@ Conflicts detected; would you like to merge these migrations [y/n]?
 python manage.py runserver
 
 
-# SUBIR PORYECTO A GUTHUD
+# SUBIR PORYECTO A GITHUD
 
 paso previo: pip freeze > requirements.txt
 
-opcional: git add .
+git add .
 
 git commit -m "mensaje descriptivo del cambio"
 
@@ -49,7 +49,7 @@ Nota: Resuelve los conflictos manualmente (usa tu editor o GitHub Desktop, VS Co
 
 Una vez resueltos, ejecuta:
 
-git add .
+opcional: git add .
 
 git commit -m "Conflictos resueltos"
 
