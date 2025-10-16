@@ -24,6 +24,9 @@ from .serializers.serializers_bitacora import BitacoraSerializer
 from rest_framework.exceptions import NotFound
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
+from .serializers.serializers_user import UserSerializer
 
 
 # ---- ViewSets de tus compañeros ----
@@ -626,3 +629,12 @@ class BitacoraViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(fecha_accion__date__lte=fecha_hasta)
         
         return queryset
+
+
+class MeView(APIView):
+    """Devuelve información básica del usuario autenticado (username, email, names)"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data, status=status.HTTP_200_OK)

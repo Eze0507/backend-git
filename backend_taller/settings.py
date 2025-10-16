@@ -14,7 +14,7 @@ SECRET_KEY = config('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["192.168.0.3","localhost","127.0.0.1"]
 
 # Application definition
 
@@ -116,14 +116,22 @@ STATIC_URL = 'static/'
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS: permitir peticiones desde tu frontend local (ej: :contentReference[oaicite:0]{index=0} en puerto 5173)
+# CORS: permitir peticiones desde tu frontend local (ej: React en puerto 5173 o 3000)
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
 ]
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
 ]
 
 # Permitir que el navegador envíe cookies en peticiones cross-origin
