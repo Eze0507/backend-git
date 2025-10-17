@@ -4,6 +4,7 @@ from .modelsVehiculos import Vehiculo
 from personal_admin.models import Empleado
 from decimal import Decimal
 from .modelsItem import Item
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 class OrdenTrabajo(models.Model):
     CHOICE_ESTADO = [
@@ -66,17 +67,32 @@ class DetalleOrdenTrabajo(models.Model):
     orden_trabajo = models.ForeignKey(OrdenTrabajo, on_delete=models.CASCADE, related_name='detalles')
     cantidad = models.IntegerField()
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2)
-    descuento = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    descuento_porcentaje = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    descuento = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)
     total = models.DecimalField(max_digits=10, decimal_places=2)
     item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='detalles_orden', null=True, blank=True)
     item_personalizado = models.CharField(max_length=200, null=True, blank=True)
     
     def save(self, *args, **kwargs):
-        self.subtotal = Decimal(self.precio_unitario) * Decimal(self.cantidad)
-        self.total = self.subtotal - Decimal(self.descuento)
-        if self.total < 0:
-            self.total = Decimal('0.00')
+        from decimal import Decimal, ROUND_HALF_UP
+        
+        self.subtotal = (Decimal(self.precio_unitario) * Decimal(self.cantidad)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+        # Si hay porcentaje > 0, calcular el descuento a partir del subtotal
+        if Decimal(self.descuento_porcentaje) > 0:
+            descuento_calculado = (self.subtotal * (Decimal(self.descuento_porcentaje) / Decimal('100'))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        else:
+            descuento_calculado = Decimal(self.descuento).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+        # No permitir que el descuento supere el subtotal
+        if descuento_calculado > self.subtotal:
+            descuento_calculado = self.subtotal
+
+        # Guardar el monto de descuento final en el campo descuento
+        self.descuento = descuento_calculado
+        self.total = (self.subtotal - descuento_calculado).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
         super().save(*args, **kwargs)
         self.orden_trabajo.recalcular_totales()
     
@@ -96,13 +112,15 @@ class DetalleOrdenTrabajo(models.Model):
         return self.item_personalizado or "Sin especificar"
     
     def clean(self):
-        """Validar que se proporcione al menos uno de los dos campos"""
+        """Validar que se proporcione al menos uno de los dos campos y que no se combinen ambos descuentos"""
         from django.core.exceptions import ValidationError
         if not self.item and not self.item_personalizado:
             raise ValidationError("Debe seleccionar un item del catálogo o especificar un item personalizado")
-        
         if self.item and self.item_personalizado:
             raise ValidationError("No puede seleccionar un item del catálogo Y especificar uno personalizado")
+        # Evitar combinar porcentaje y monto fijo simultáneamente
+        if Decimal(self.descuento or 0) > 0 and Decimal(self.descuento_porcentaje or 0) > 0:
+            raise ValidationError("Use descuento PORCENTAJE o descuento MONTO, no ambos a la vez")
     
     class Meta:
         db_table = 'detalle_orden_trabajo'
@@ -113,19 +131,7 @@ class DetalleOrdenTrabajo(models.Model):
 class InventarioVehiculo (models.Model):
     id = models.AutoField(primary_key=True)
     orden_trabajo = models.ForeignKey(OrdenTrabajo, on_delete=models.CASCADE, related_name='inventario_vehiculo')
-    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='inventario_vehiculo', null=True, blank=True)
-    
-    def __str__(self):
-        return f"Inventario de Vehiculo {self.id} - Orden {self.orden_trabajo.id}"
-    class Meta:
-        db_table = 'inventario_vehiculo'
-        verbose_name = 'Inventario de Vehiculo'
-        verbose_name_plural = 'Inventarios de Vehiculos'
-        ordering = ['id']
-
-class ItemInventarioVehiculo(models.Model):
-    id = models.AutoField(primary_key=True)
-    inventario_vehiculo = models.ForeignKey(InventarioVehiculo, on_delete=models.CASCADE, related_name='items')
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
     extintor = models.BooleanField(default=False)
     botiquin = models.BooleanField(default=False)
     antena = models.BooleanField(default=False)
@@ -141,12 +147,12 @@ class ItemInventarioVehiculo(models.Model):
     triangulos = models.BooleanField(default=False)
     
     def __str__(self):
-        return f"Item {self.id} de Inventario de Vehiculo"
+        return f"Inventario {self.id} de Orden {self.orden_trabajo.id}"
     
     class Meta:
-        db_table = 'item_inventario_vehiculo'
-        verbose_name = 'Item de Inventario de Vehiculo'
-        verbose_name_plural = 'Items de Inventarios de Vehiculos'
+        db_table = 'inventario_vehiculo'
+        verbose_name = 'Inventario de Vehículo'
+        verbose_name_plural = 'Inventarios de Vehículos'
         ordering = ['id']
 
 class TareaOrdenTrabajo(models.Model):
@@ -231,6 +237,17 @@ class NotaOrdenTrabajo(models.Model):
         ordering = ['id']
 
 class Inspeccion(models.Model):
+    OPCIONES_ESTADO = [
+        ('bueno', 'Buen estado'),
+        ('malo', 'Mal estado'),
+    ]
+    
+    OPCIONES_NIVEL = [
+        ('alto', 'Alto'),
+        ('medio', 'Medio'),
+        ('bajo', 'Bajo'),
+    ]
+    
     TIPO_INSPECCION = [
         ('ingreso', 'Ingreso'),
         ('salida', 'Salida'),
@@ -240,6 +257,13 @@ class Inspeccion(models.Model):
     tipo_inspeccion = models.CharField(max_length=20, choices=TIPO_INSPECCION)
     fecha = models.DateTimeField(auto_now_add=True)
     tecnico = models.ForeignKey(Empleado, on_delete=models.SET_NULL, null=True, related_name='inspecciones')
+    aceite_motor = models.CharField(max_length=20, choices=OPCIONES_ESTADO, blank=True, null=True)
+    Filtros_VH = models.CharField(max_length=20, choices=OPCIONES_ESTADO, blank=True, null=True)
+    nivel_refrigerante = models.CharField(max_length=20, choices=OPCIONES_NIVEL, blank=True, null=True)
+    pastillas_freno = models.CharField(max_length=20, choices=OPCIONES_ESTADO, blank=True, null=True)
+    Estado_neumaticos = models.CharField(max_length=20, choices=OPCIONES_ESTADO, blank=True, null=True)
+    estado_bateria = models.CharField(max_length=20, choices=OPCIONES_NIVEL, blank=True, null=True)
+    estado_luces = models.CharField(max_length=20, choices=OPCIONES_ESTADO, blank=True, null=True)
     observaciones_generales = models.TextField(blank=True, null=True)
     
     def __str__(self):
