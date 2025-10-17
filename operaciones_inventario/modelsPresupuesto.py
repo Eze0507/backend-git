@@ -8,8 +8,10 @@ class presupuesto(models.Model):
     diagnostico = models.TextField(null=True, blank=True)
     fecha_inicio = models.DateField(null=True, blank=True)
     fecha_fin = models.DateField(null=True, blank=True)
-    descuento = models.DecimalField(null=True, blank=True, max_digits=10, decimal_places=2)
-    impuestos = models.DecimalField(null=True, blank=True, max_digits=10, decimal_places=2)
+    descuento = models.DecimalField(null=True, blank=True, max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    # Flag para indicar si este presupuesto aplica impuestos o no (opcional para el cliente)
+    con_impuestos = models.BooleanField(default=False)
+    impuestos = models.DecimalField(null=True, blank=True, max_digits=10, decimal_places=2, default=Decimal('0.00'))
     subtotal = models.DecimalField(null=True, blank=True, max_digits=10, decimal_places=2)
     total = models.DecimalField(null=True, blank=True, max_digits=10, decimal_places=2)
     vehiculo = models.ForeignKey(Vehiculo, on_delete=models.SET_NULL, null=True, blank=True, related_name='presupuestos')
@@ -27,15 +29,26 @@ class presupuesto(models.Model):
         total_detalles = sum((d.total or Decimal('0.00')) for d in detalles)
         # Si cada detalle tiene un campo descuento/subtotal, ajústalo aquí. Por ahora usamos total y subtotal calculado
         subtotal_orden = sum((getattr(d, 'subtotal', None) or Decimal('0.00')) for d in detalles)
-        # impuesto configurado en el model (si existe) o tasa fija 13%
-        tasa_impuesto = (self.impuestos if self.impuestos not in (None, Decimal('0.00')) else Decimal('0.13'))
+        # Si el cliente NO quiere impuestos, los ignoramos (tasa 0). Si quiere, tomamos
+        # la tasa guardada en `impuestos` o usamos 13% por defecto cuando no se especificó.
+        if self.con_impuestos:
+            tasa_impuesto = (self.impuestos if self.impuestos not in (None, Decimal('0.00')) else Decimal('0.13'))
+        else:
+            tasa_impuesto = Decimal('0.00')
+
         impuesto = (total_detalles * tasa_impuesto).quantize(Decimal('0.01'))
         total_final = (total_detalles + impuesto).quantize(Decimal('0.01'))
+        descuento = sum((getattr(d, 'descuento', None) or Decimal('0.00')) for d in detalles)
         self.subtotal = subtotal_orden if subtotal_orden is not None else total_detalles
-        self.impuestos = tasa_impuesto
-        self.total = total_final
-        # Guardar sólo los campos que cambiaron
-        self.save(update_fields=['subtotal', 'impuestos', 'total'])
+        # Si aplican impuestos, persistimos la tasa; si no, dejar impuestos como está (o 0)
+        if self.con_impuestos:
+            self.impuestos = tasa_impuesto
+            self.total = total_final
+            self.save(update_fields=['subtotal', 'impuestos', 'total'])
+        else:
+            # No persistimos la tasa en 'impuestos' para mantenerla tal cual ingresada; solo actualizamos subtotal y total
+            self.total = total_final
+            self.save(update_fields=['subtotal', 'total'])
     
 class detallePresupuesto(models.Model):
     id = models.AutoField(primary_key=True)
