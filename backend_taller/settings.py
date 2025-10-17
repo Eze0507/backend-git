@@ -106,7 +106,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/La_Paz'
 USE_I18N = True
 USE_TZ = True
 
@@ -133,6 +133,8 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5174",
     "http://127.0.0.1:5174",
 ]
+
+CORS_ALLOW_ALL_ORIGINS = False 
 
 # Permitir que el navegador envíe cookies en peticiones cross-origin
 CORS_ALLOW_CREDENTIALS = True

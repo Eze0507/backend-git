@@ -1,7 +1,58 @@
 from rest_framework import serializers
-from ..modelsOrdenTrabajo import (OrdenTrabajo, DetalleOrdenTrabajo, InventarioVehiculo,  
-ItemInventarioVehiculo, TareaOrdenTrabajo, ImagenOrdenTrabajo, PruebaRuta, NotaOrdenTrabajo, 
-Inspeccion, AsignacionTecnico, DetalleInspeccion)
+
+from personal_admin import models
+from ..modelsOrdenTrabajo import (OrdenTrabajo, DetalleOrdenTrabajo, TareaOrdenTrabajo, ImagenOrdenTrabajo, 
+PruebaRuta, NotaOrdenTrabajo, AsignacionTecnico, InventarioVehiculo, Inspeccion, PruebaRuta)
+
+class ImagenOrdenTrabajoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ImagenOrdenTrabajo
+        fields = ['id', 'imagen_url', 'descripcion']
+
+class AsignacionTecnicoSerializer(serializers.ModelSerializer):
+    tecnico_nombre = serializers.CharField(source='tecnico.nombre', read_only=True)
+    
+    class Meta:
+        model = AsignacionTecnico
+        fields = ['id', 'tecnico', 'tecnico_nombre', 'fecha_asignacion']
+        read_only_fields = ['fecha_asignacion']
+
+class PruebaRutaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PruebaRuta
+        fields = ['id', 'orden_trabajo', 'fecha_prueba', 'tipo_prueba', 'kilometraje_inicio', 'kilometraje_final', 
+                'ruta', 'frenos', 'motor', 'suspension', 'direccion', 'observaciones', 'tecnico']
+        read_only_fields = ['fecha_prueba']
+
+class inspeccionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Inspeccion
+        fields = ['id','orden_trabajo', 'tipo_inspeccion', 'fecha', 'tecnico', 'aceite_motor', 'Filtros_VH', 
+                'nivel_refrigerante', 'pastillas_freno', 'Estado_neumaticos', 'estado_bateria', 
+                'estado_luces', 'observaciones_generales']
+        read_only_fields = ['fecha']
+
+class inventarioVehiculoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InventarioVehiculo
+        fields = [
+            'id', 'orden_trabajo', 'fecha_creacion', 'extintor', 
+            'botiquin', 'antena', 'llanta_repuesto', 'documentos', 
+            'encendedor', 'pisos', 'luces', 'llaves', 'gata', 
+            'herramientas', 'tapas_ruedas', 'triangulos'
+        ]
+        read_only_fields = ['fecha_creacion']
+
+class TareaOrdenTrabajoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TareaOrdenTrabajo
+        fields = ['id', 'descripcion', 'completada']
+
+class NotaOrdenTrabajoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NotaOrdenTrabajo
+        fields = ['id', 'contenido', 'fecha_nota']
+        read_only_fields = ['fecha_nota']
 
 class DetalleOrdenTrabajoSerializer(serializers.ModelSerializer):
     nombre_item = serializers.ReadOnlyField() 
@@ -10,7 +61,8 @@ class DetalleOrdenTrabajoSerializer(serializers.ModelSerializer):
     class Meta:
         model = DetalleOrdenTrabajo
         fields = [
-            'id', 'cantidad', 'precio_unitario', 'descuento', 
+            'id', 'cantidad', 'precio_unitario', 
+            'descuento', 'descuento_porcentaje',
             'subtotal', 'total', 
             'item',                   
             'item_personalizado',
@@ -19,13 +71,20 @@ class DetalleOrdenTrabajoSerializer(serializers.ModelSerializer):
         read_only_fields = ['subtotal', 'total']
     
     def validate(self, data):
-        """Validación que contempla item_personalizado"""
-        item = data.get('item')
-        item_personalizado = data.get('item_personalizado')
+        from decimal import Decimal
+        # Validación item o personalizado
+        item = data.get('item', getattr(self.instance, 'item', None))
+        item_personalizado = data.get('item_personalizado', getattr(self.instance, 'item_personalizado', None))
         if not item and not item_personalizado:
             raise serializers.ValidationError("Debe seleccionar un item del catálogo o especificar un item personalizado")
         if item and item_personalizado:
             raise serializers.ValidationError("No puede seleccionar un item del catálogo Y especificar uno personalizado")
+
+        # No combinar porcentaje y monto fijo
+        d_pct = data.get('descuento_porcentaje', getattr(self.instance, 'descuento_porcentaje', 0) or 0)
+        d_monto = data.get('descuento', getattr(self.instance, 'descuento', 0) or 0)
+        if Decimal(str(d_pct)) > 0 and Decimal(str(d_monto)) > 0:
+            raise serializers.ValidationError("Use descuento PORCENTAJE o descuento MONTO, no ambos a la vez")
         return data
 
 class OrdenTrabajoSerializer(serializers.ModelSerializer):
@@ -35,6 +94,13 @@ class OrdenTrabajoSerializer(serializers.ModelSerializer):
     vehiculo_modelo = serializers.CharField(source='vehiculo.modelo.nombre', read_only=True)
     vehiculo_marca = serializers.CharField(source='vehiculo.marca.nombre', read_only=True)
     detalles = DetalleOrdenTrabajoSerializer(many=True, required=False)
+    notas = NotaOrdenTrabajoSerializer(many=True, read_only=True)
+    tareas = TareaOrdenTrabajoSerializer(many=True, read_only=True)
+    inventario_vehiculo = inventarioVehiculoSerializer(many=True, read_only=True)
+    inspecciones = inspeccionSerializer(many=True, read_only=True)
+    pruebas_ruta = PruebaRutaSerializer(many=True, read_only=True)
+    asignaciones_tecnicos = AsignacionTecnicoSerializer(many=True, read_only=True)
+    imagenes = ImagenOrdenTrabajoSerializer(many=True, read_only=True)
     
     class Meta:
         model = OrdenTrabajo
@@ -44,7 +110,9 @@ class OrdenTrabajoSerializer(serializers.ModelSerializer):
             'kilometraje', 'nivel_combustible', 'observaciones',
             'subtotal', 'impuesto', 'total', 'descuento',
             'vehiculo', 'cliente', 'cliente_nombre', 'cliente_telefono',
-            'vehiculo_placa','vehiculo_modelo' ,'vehiculo_marca', 'detalles'
+            'vehiculo_placa','vehiculo_modelo' ,'vehiculo_marca', 'detalles',
+            'notas', 'tareas', 'inventario_vehiculo', 'inspecciones', 'pruebas_ruta',
+            'asignaciones_tecnicos', 'imagenes'
         ]
         read_only_fields = ['subtotal', 'impuesto', 'total', 'descuento']
     
@@ -87,5 +155,6 @@ class OrdenTrabajoCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         """Crear orden con totales inicializados en 0"""
         orden = OrdenTrabajo.objects.create(**validated_data)
+        InventarioVehiculo.objects.create(orden_trabajo=orden)
         orden.recalcular_totales()  # Inicializar totales en 0
         return orden

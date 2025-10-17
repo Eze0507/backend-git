@@ -55,6 +55,7 @@ class Bitacora(models.Model):
         EMPLEADO = "Empleado", "Empleado"
         VEHICULO = "Vehiculo", "Vehículo"
         ITEM = "Item", "Item"
+        ORDEN_TRABAJO = "OrdenTrabajo", "Orden de Trabajo"
         AUTENTICACION = "Autenticacion", "Autenticación"
     
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bitacoras')

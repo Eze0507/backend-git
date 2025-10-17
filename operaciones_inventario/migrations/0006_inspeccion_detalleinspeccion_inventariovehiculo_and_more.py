@@ -14,79 +14,6 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Inspeccion',
-            fields=[
-                ('id', models.AutoField(primary_key=True, serialize=False)),
-                ('tipo_inspeccion', models.CharField(choices=[('ingreso', 'Ingreso'), ('salida', 'Salida')], max_length=20)),
-                ('fecha', models.DateTimeField(auto_now_add=True)),
-                ('observaciones_generales', models.TextField(blank=True, null=True)),
-                ('tecnico', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='inspecciones', to='personal_admin.empleado')),
-            ],
-            options={
-                'verbose_name': 'Inspección',
-                'verbose_name_plural': 'Inspecciones',
-                'db_table': 'inspeccion',
-            },
-        ),
-        migrations.CreateModel(
-            name='DetalleInspeccion',
-            fields=[
-                ('id', models.AutoField(primary_key=True, serialize=False)),
-                ('aceite_motor', models.CharField(blank=True, choices=[('bueno', 'Buen estado'), ('malo', 'Mal estado')], max_length=20, null=True)),
-                ('Filtros_VH', models.CharField(blank=True, choices=[('bueno', 'Buen estado'), ('malo', 'Mal estado')], max_length=20, null=True)),
-                ('nivel_refrigerante', models.CharField(blank=True, choices=[('alto', 'Alto'), ('medio', 'Medio'), ('bajo', 'Bajo')], max_length=20, null=True)),
-                ('pastillas_freno', models.CharField(blank=True, choices=[('bueno', 'Buen estado'), ('malo', 'Mal estado')], max_length=20, null=True)),
-                ('Estado_neumaticos', models.CharField(blank=True, choices=[('bueno', 'Buen estado'), ('malo', 'Mal estado')], max_length=20, null=True)),
-                ('estado_bateria', models.CharField(blank=True, choices=[('alto', 'Alto'), ('medio', 'Medio'), ('bajo', 'Bajo')], max_length=20, null=True)),
-                ('estado_luces', models.CharField(blank=True, choices=[('bueno', 'Buen estado'), ('malo', 'Mal estado')], max_length=20, null=True)),
-                ('inspeccion', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='detalles', to='operaciones_inventario.inspeccion')),
-            ],
-            options={
-                'verbose_name': 'Detalle de Inspección',
-                'verbose_name_plural': 'Detalles de Inspección',
-                'db_table': 'detalle_inspeccion',
-            },
-        ),
-        migrations.CreateModel(
-            name='InventarioVehiculo',
-            fields=[
-                ('id', models.AutoField(primary_key=True, serialize=False)),
-                ('item', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='inventario_vehiculo', to='operaciones_inventario.item')),
-            ],
-            options={
-                'verbose_name': 'Inventario de Vehiculo',
-                'verbose_name_plural': 'Inventarios de Vehiculos',
-                'db_table': 'inventario_vehiculo',
-                'ordering': ['id'],
-            },
-        ),
-        migrations.CreateModel(
-            name='ItemInventarioVehiculo',
-            fields=[
-                ('id', models.AutoField(primary_key=True, serialize=False)),
-                ('extintor', models.BooleanField(default=False)),
-                ('botiquin', models.BooleanField(default=False)),
-                ('antena', models.BooleanField(default=False)),
-                ('llanta_repuesto', models.BooleanField(default=False)),
-                ('documentos', models.BooleanField(default=False)),
-                ('encendedor', models.BooleanField(default=False)),
-                ('pisos', models.BooleanField(default=False)),
-                ('luces', models.BooleanField(default=False)),
-                ('llaves', models.BooleanField(default=False)),
-                ('gata', models.BooleanField(default=False)),
-                ('herramientas', models.BooleanField(default=False)),
-                ('tapas_ruedas', models.BooleanField(default=False)),
-                ('triangulos', models.BooleanField(default=False)),
-                ('inventario_vehiculo', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='items', to='operaciones_inventario.inventariovehiculo')),
-            ],
-            options={
-                'verbose_name': 'Item de Inventario de Vehiculo',
-                'verbose_name_plural': 'Items de Inventarios de Vehiculos',
-                'db_table': 'item_inventario_vehiculo',
-                'ordering': ['id'],
-            },
-        ),
-        migrations.CreateModel(
             name='OrdenTrabajo',
             fields=[
                 ('id', models.AutoField(primary_key=True, serialize=False)),
@@ -127,16 +54,6 @@ class Migration(migrations.Migration):
                 'db_table': 'nota_orden_trabajo',
                 'ordering': ['id'],
             },
-        ),
-        migrations.AddField(
-            model_name='inventariovehiculo',
-            name='orden_trabajo',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='inventario_vehiculo', to='operaciones_inventario.ordentrabajo'),
-        ),
-        migrations.AddField(
-            model_name='inspeccion',
-            name='orden_trabajo',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='inspecciones', to='operaciones_inventario.ordentrabajo'),
         ),
         migrations.CreateModel(
             name='ImagenOrdenTrabajo',
