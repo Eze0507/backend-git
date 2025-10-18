@@ -17,29 +17,10 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-
-@csrf_exempt
-def health_check(request):
-    """Health check endpoint para Railway"""
-    return JsonResponse({'status': 'ok', 'message': 'Backend is running'})
-
-@csrf_exempt  
-def root(request):
-    """Root endpoint que redirige al admin"""
-    return JsonResponse({
-        'message': 'Backend API is running',
-        'admin': '/admin/',
-        'api': '/api/',
-        'health': '/health/'
-    })
 
 urlpatterns = [
-    path('', root, name='root'),
-    path('health/', health_check, name='health_check'),
-    path('admin/', admin.site.urls),
     path('api/', include('clientes_servicios.urls')), 
     path('api/', include('personal_admin.urls')),
     path('api/', include('operaciones_inventario.urls')),
+    path('', admin.site.urls),
 ]
