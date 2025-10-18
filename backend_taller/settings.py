@@ -99,13 +99,12 @@ TEMPLATES = [
 WSGI_APPLICATION = 'backend_taller.wsgi.application'
 
 # Database
-POSTGRES_FALLBACK_URL = 'postgres://user:password@localhost:5432/mydatabase'
 
 DATABASES = {
-    # Al quitar el valor de respaldo, forzamos a Railway a usar su variable.
-    # Si por alguna razón falla, dj_database_url puede manejar la cadena vacía
-    # O, como ya resolvimos todos los errores, la variable REAL de Railway DEBE ser inyectada.
-    'default': dj_database_url.config(default=config('DJANGO_DATABASE_URL')) 
+    'default': dj_database_url.config(
+        # Lee la variable directamente del entorno, O usa la URL de respaldo si no existe.
+        default=os.environ.get('DJANGO_DATABASE_URL', 'postgres://user:password@localhost:5432/mydatabase') 
+    )
 }
 
 # Password validation
