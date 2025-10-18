@@ -14,7 +14,13 @@ SECRET_KEY = config('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = ["192.168.0.3","localhost","127.0.0.1"]
+# Configuración de ALLOWED_HOSTS para Railway
+RAILWAY_PUBLIC_DOMAIN = config('RAILWAY_PUBLIC_DOMAIN', default='')
+ALLOWED_HOSTS = ["192.168.0.3", "localhost", "127.0.0.1"]
+if RAILWAY_PUBLIC_DOMAIN:
+    ALLOWED_HOSTS.append(RAILWAY_PUBLIC_DOMAIN)
+    # También permitir el dominio de Railway sin www
+    ALLOWED_HOSTS.append(f'*.railway.app')
 
 # Application definition
 
@@ -63,6 +69,7 @@ SIMPLE_JWT = {
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Para servir archivos estáticos
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',  
     'django.middleware.common.CommonMiddleware',
@@ -111,7 +118,15 @@ USE_I18N = True
 USE_TZ = True
 
 # Static files
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Configuración de WhiteNoise para archivos estáticos
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -125,6 +140,14 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5174",
     "http://127.0.0.1:5174",
 ]
+
+# Agregar dominio de Railway si existe
+if RAILWAY_PUBLIC_DOMAIN:
+    CORS_ALLOWED_ORIGINS.extend([
+        f"https://{RAILWAY_PUBLIC_DOMAIN}",
+        f"http://{RAILWAY_PUBLIC_DOMAIN}",
+    ])
+
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -133,6 +156,13 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5174",
     "http://127.0.0.1:5174",
 ]
+
+# Agregar dominio de Railway a CSRF trusted origins
+if RAILWAY_PUBLIC_DOMAIN:
+    CSRF_TRUSTED_ORIGINS.extend([
+        f"https://{RAILWAY_PUBLIC_DOMAIN}",
+        f"http://{RAILWAY_PUBLIC_DOMAIN}",
+    ])
 
 CORS_ALLOW_ALL_ORIGINS = False 
 
