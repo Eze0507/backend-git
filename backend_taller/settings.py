@@ -1,6 +1,7 @@
 from pathlib import Path
 from decouple import config
 import dj_database_url
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -98,8 +99,12 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend_taller.wsgi.application'
 
-# Database
 
+if os.path.exists('.env'):
+    from dotenv import load_dotenv
+    load_dotenv()
+    
+# Database
 DATABASES = {
     'default': dj_database_url.config(default=config('DJANGO_DATABASE_URL', default='postgresql://${{PGUSER}}:${{POSTGRES_PASSWORD}}@${{RAILWAY_PRIVATE_DOMAIN}}:5432/${{PGDATABASE}}')) 
 }
