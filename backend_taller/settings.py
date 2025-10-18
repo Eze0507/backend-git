@@ -10,7 +10,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 #SECRET_KEY = config('SECRET_KEY') <---Antes porque daba error en despliegue
-SECRET_KEY = config('DJANGO_SECRET_KEY', default='')
+SECRET_KEY = config('DJANGO_SECRET_KEY', default='u8f4a3^d*t%u=*m9cz35#3k7j__pazi_ey%*c3(2)nj*%=#n&&')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
 
