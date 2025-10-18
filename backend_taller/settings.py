@@ -101,7 +101,7 @@ WSGI_APPLICATION = 'backend_taller.wsgi.application'
 # Database
 
 DATABASES = {
-    'default': dj_database_url.config(default=config('DJANGO_DATABASE_URL', default='')) 
+    'default': dj_database_url.config(default=config('DJANGO_DATABASE_URL', default='postgresql://${{PGUSER}}:${{POSTGRES_PASSWORD}}@${{RAILWAY_PRIVATE_DOMAIN}}:5432/${{PGDATABASE}}')) 
 }
 
 # Password validation
