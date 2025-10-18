@@ -25,7 +25,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cliente
         fields = [
-            'nombre', 'apellido', 'direccion', 'telefono', 
+            'nombre', 'apellido', 'nit', 'direccion', 'telefono', 
             'tipo_cliente', 'username', 'email'
         ]
     
@@ -44,16 +44,17 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         # Asegurar que los campos requeridos no estén vacíos
         data['nombre'] = instance.nombre or 'No especificado'
         data['apellido'] = instance.apellido or 'No especificado'
+        data['nit'] = instance.nit or 'No especificado'
         data['direccion'] = instance.direccion or 'No especificado'
         data['telefono'] = instance.telefono or 'No especificado'
         
         return data
     
     def update(self, instance, validated_data):
-        user_data = validated_data.pop('user', {})
+        user_data = validated_data.pop('usuario', {})
         user_instance = instance.usuario
         
-        if user_data:
+        if user_data and user_instance:
             for attr, value in user_data.items():
                 setattr(user_instance, attr, value)
             user_instance.save()
