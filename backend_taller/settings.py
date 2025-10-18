@@ -100,7 +100,7 @@ WSGI_APPLICATION = 'backend_taller.wsgi.application'
 
 # Database
 DATABASES = {
-    'default': dj_database_url.config(default=config('DATABASE_URL'))
+    'default': dj_database_url.config(default=config('DJANGO_DATABASE_URL'))
 }
 
 # Password validation
