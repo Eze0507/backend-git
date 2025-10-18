@@ -1,7 +1,7 @@
 from pathlib import Path
 from decouple import config
 import dj_database_url
-import os
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -101,10 +101,7 @@ WSGI_APPLICATION = 'backend_taller.wsgi.application'
 # Database
 
 DATABASES = {
-    'default': dj_database_url.config(
-        # Lee la variable directamente del entorno, O usa la URL de respaldo si no existe.
-        default=os.environ.get('DJANGO_DATABASE_URL', 'postgres://user:password@localhost:5432/mydatabase') 
-    )
+    'default': dj_database_url.config(default=config('DJANGO_DATABASE_URL', default='')) 
 }
 
 # Password validation
