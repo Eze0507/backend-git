@@ -21,12 +21,10 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 RAILWAY_PUBLIC_DOMAIN = config('RAILWAY_PUBLIC_DOMAIN', default='')
 RAILWAY_STATIC_URL = config('RAILWAY_STATIC_URL', default='')
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", ".railway.app"]
     
 if RAILWAY_PUBLIC_DOMAIN:
     ALLOWED_HOSTS.append(RAILWAY_PUBLIC_DOMAIN)
-    # Remover la línea siguiente porque el wildcard no funciona bien:
-    # ALLOWED_HOSTS.append('*.railway.app')
 
 if RAILWAY_STATIC_URL:
     domain = RAILWAY_STATIC_URL.replace('https://', '').replace('http://', '')

@@ -28,8 +28,8 @@ COPY . .
 # Recolectar archivos estáticos
 RUN python manage.py collectstatic --noinput || true
 
-# Exponer el puerto
+# Exponer el puerto (Railway usa $PORT dinámicamente)
 EXPOSE 8000
 
-# Comando para ejecutar la aplicación
-CMD ["gunicorn", "backend_taller.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]
+# El comando de inicio está definido en railway.json
+# Railway sobrescribirá este CMD con el startCommand
