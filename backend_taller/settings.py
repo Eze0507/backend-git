@@ -100,7 +100,9 @@ WSGI_APPLICATION = 'backend_taller.wsgi.application'
 
 # Database
 DATABASES = {
-    'default': dj_database_url.config(default=config('DJANGO_DATABASE_URL'))
+    # Si 'DJANGO_DATABASE_URL' no se encuentra, config() ahora devuelve una cadena vacía ('')
+    # Esto evita el error de UndefinedValueError y permite que el servidor inicie.
+    'default': dj_database_url.config(default=config('DJANGO_DATABASE_URL', default='')) 
 }
 
 # Password validation
