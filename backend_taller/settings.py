@@ -163,7 +163,7 @@ CORS_ALLOWED_ORIGINS = [
 if not DEBUG:
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_SECURE = True
-    SECURE_SSL_REDIRECT = True
+    #SECURE_SSL_REDIRECT = True#
 
 # Agregar dominio de Railway si existe
 if RAILWAY_PUBLIC_DOMAIN:
@@ -172,7 +172,10 @@ if RAILWAY_PUBLIC_DOMAIN:
         f"http://{RAILWAY_PUBLIC_DOMAIN}",
     ])
 
+# Agregar dominio de Railway a CSRF trusted origins
 CSRF_TRUSTED_ORIGINS = [
+    "https://frontend-git-production.up.railway.app",
+    "https://backend-git-production.up.railway.app",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:3000",
