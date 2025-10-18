@@ -99,10 +99,13 @@ TEMPLATES = [
 WSGI_APPLICATION = 'backend_taller.wsgi.application'
 
 # Database
+POSTGRES_FALLBACK_URL = 'postgres://user:password@localhost:5432/mydatabase'
+
 DATABASES = {
-    # Si 'DJANGO_DATABASE_URL' no se encuentra, config() ahora devuelve una cadena vacía ('')
-    # Esto evita el error de UndefinedValueError y permite que el servidor inicie.
-    'default': dj_database_url.config(default=config('DJANGO_DATABASE_URL', default='')) 
+    # Cambia el default='' a default=POSTGRES_FALLBACK_URL
+    'default': dj_database_url.config(
+        default=config('DJANGO_DATABASE_URL', default=POSTGRES_FALLBACK_URL) 
+    )
 }
 
 # Password validation
