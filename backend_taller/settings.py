@@ -1,7 +1,9 @@
 from pathlib import Path
 from decouple import config
 import dj_database_url
+from dotenv import load_dotenv
 import os
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -17,11 +19,22 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 
 # Configuración de ALLOWED_HOSTS para Railway
 RAILWAY_PUBLIC_DOMAIN = config('RAILWAY_PUBLIC_DOMAIN', default='')
-ALLOWED_HOSTS = ["192.168.0.3", "localhost", "127.0.0.1"]
+RAILWAY_STATIC_URL = config('RAILWAY_STATIC_URL', default='')
+
+ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+    
 if RAILWAY_PUBLIC_DOMAIN:
     ALLOWED_HOSTS.append(RAILWAY_PUBLIC_DOMAIN)
-    # También permitir el dominio de Railway sin www
-    ALLOWED_HOSTS.append(f'*.railway.app')
+    # Remover la línea siguiente porque el wildcard no funciona bien:
+    # ALLOWED_HOSTS.append('*.railway.app')
+
+if RAILWAY_STATIC_URL:
+    domain = RAILWAY_STATIC_URL.replace('https://', '').replace('http://', '')
+    ALLOWED_HOSTS.append(domain)
+
+# Para desarrollo local con tu IP
+if DEBUG:
+    ALLOWED_HOSTS.append("192.168.0.3")
 
 # Application definition
 
@@ -100,13 +113,10 @@ TEMPLATES = [
 WSGI_APPLICATION = 'backend_taller.wsgi.application'
 
 
-if os.path.exists('.env'):
-    from dotenv import load_dotenv
-    load_dotenv()
-    
+
 # Database
 DATABASES = {
-    'default': dj_database_url.config(default=config('DJANGO_DATABASE_URL', default='postgresql://${{PGUSER}}:${{POSTGRES_PASSWORD}}@${{RAILWAY_PRIVATE_DOMAIN}}:5432/${{PGDATABASE}}')) 
+    'default': dj_database_url.config(default=os.getenv('DJANGO_DATABASE_URL')) 
 }
 
 # Password validation
@@ -139,6 +149,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS: permitir peticiones desde tu frontend local (ej: React en puerto 5173 o 3000)
 CORS_ALLOWED_ORIGINS = [
+    "https://frontend-git-production.up.railway.app",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:3000",
@@ -146,6 +157,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5174",
     "http://127.0.0.1:5174",
 ]
+if not DEBUG:
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = True
 
 # Agregar dominio de Railway si existe
 if RAILWAY_PUBLIC_DOMAIN:
