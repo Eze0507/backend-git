@@ -25,11 +25,11 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copiar el proyecto
 COPY . .
 
-# Recolectar archivos estáticos
-RUN python manage.py collectstatic --noinput || true
+# Crear directorios necesarios
+RUN mkdir -p /app/staticfiles /app/media
 
 # Exponer el puerto (Railway usa $PORT dinámicamente)
 EXPOSE 8000
 
 # El comando de inicio está definido en railway.json
-# Railway sobrescribirá este CMD con el startCommand
+# No ejecutamos collectstatic aquí porque necesita las variables de entorno de Railway
