@@ -1,0 +1,1 @@
+web: gunicorn backend_taller.wsgi --log-file -
