@@ -117,7 +117,7 @@ WSGI_APPLICATION = 'backend_taller.wsgi.application'
 # Database
 DATABASES = {
     'default': dj_database_url.config(
-        default=config('DJANGO_DATABASE_URL', default='sqlite:///db.sqlite3'),
+        default=config('DATABASE_URL', default='sqlite:///db.sqlite3'),
         conn_max_age=600
     )
 }
