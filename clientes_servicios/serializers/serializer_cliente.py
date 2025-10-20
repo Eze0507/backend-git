@@ -4,8 +4,14 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['username', 'email']
+
 class ClienteSerializer(serializers.ModelSerializer):
     usuario_info = serializers.SerializerMethodField(read_only=True)
+    usuario = UserSerializer(required=False)
 
     class Meta:
         model = Cliente
@@ -66,7 +72,25 @@ class ClienteSerializer(serializers.ModelSerializer):
 
     # -------- CREATE & UPDATE --------
     def create(self, validated_data):
-        return Cliente.objects.create(**validated_data)
+        usuario_data = validated_data.pop('usuario', None)
+        cliente = Cliente.objects.create(**validated_data)
+        
+        if usuario_data:
+            user = User.objects.create_user(**usuario_data)
+            cliente.usuario = user
+            cliente.save()
+        
+        return cliente
 
     def update(self, instance, validated_data):
+        usuario_data = validated_data.pop('usuario', None)
+        
+        # Actualiza los datos del usuario si existen
+        if usuario_data and instance.usuario:
+            user = instance.usuario
+            for attr, value in usuario_data.items():
+                setattr(user, attr, value)
+            user.save()
+        
+        # Actualiza el resto de los campos del cliente
         return super().update(instance, validated_data)
