@@ -31,7 +31,7 @@ if RAILWAY_STATIC_URL:
 
 # Para desarrollo local con tu IP
 if DEBUG:
-    ALLOWED_HOSTS.append("192.168.0.3")
+    ALLOWED_HOSTS.append("192.168.100.6")
 
 # Application definition
 
@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'clientes_servicios',
     'finanzas_facturacion',
     'operaciones_inventario',
+    'servicios_IA',
     'django_filters', 
 
     # Paquetes externos
@@ -156,6 +157,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://192.168.0.3:5173",
     "http://192.168.0.3:3000",
     "http://192.168.0.3:8000",
+    "http://192.168.100.6:8000",
 ]
 if not DEBUG:
     CSRF_COOKIE_SECURE = True
@@ -182,6 +184,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://192.168.0.3:5173",
     "http://192.168.0.3:3000",
     "http://192.168.0.3:8000",
+    "http://192.168.100.6:8000",
 ]
 
 # Agregar dominio de Railway a CSRF trusted origins
@@ -195,4 +198,8 @@ CORS_ALLOW_ALL_ORIGINS = False
 
 # Permitir que el navegador envíe cookies en peticiones cross-origin
 CORS_ALLOW_CREDENTIALS = True
-API_KEY_IMGBB= config('API_KEY_IMGBB', default='')
+API_KEY_IMGBB=config('API_KEY_IMGBB', default='')
+
+# Configuración para servicios de IA - Reconocimiento de placas
+PLATE_TOKEN = config('PLATE_TOKEN', default='')
+PLATE_REGIONS = config('PLATE_REGIONS', default='bo')
