@@ -2,13 +2,23 @@ from  django.db import models
 from decimal import Decimal
 from .modelsItem import Item as item
 from .modelsVehiculos import Vehiculo
+from clientes_servicios.models import Cliente
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 class presupuesto(models.Model):
+    ESTADO_CHOICES = [
+        ('pendiente', 'Pendiente'),
+        ('aprobado', 'Aprobado'),
+        ('rechazado', 'Rechazado'),
+        ('cancelado', 'Cancelado'),
+    ]
+    
     id = models.AutoField(primary_key=True)
     diagnostico = models.TextField(null=True, blank=True)
     fecha_inicio = models.DateField(null=True, blank=True)
     fecha_fin = models.DateField(null=True, blank=True)
+    cliente = models.ForeignKey(Cliente, on_delete=models.SET_NULL, null=True, blank=True, related_name='presupuestos')
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='pendiente')
     # Flag para indicar si este presupuesto aplica impuestos o no (opcional para el cliente)
     con_impuestos = models.BooleanField(default=False)
     impuestos = models.DecimalField(null=True, blank=True, max_digits=10, decimal_places=2, default=Decimal('0.00'))
@@ -31,8 +41,8 @@ class presupuesto(models.Model):
         total_descuentos = sum((getattr(d, 'descuento', Decimal('0.00')) or Decimal('0.00')) for d in detalles)
         subtotal_orden = sum((getattr(d, 'subtotal', None) or Decimal('0.00')) for d in detalles)
         
-        # Calcular impuesto igual que en OrdenTrabajo: sobre total_detalles (después de descuentos)
-        if self.impuestos and self.impuestos > Decimal('0.00'):
+        # Calcular impuesto solo si con_impuestos está activado
+        if self.con_impuestos and self.impuestos and self.impuestos > Decimal('0.00'):
             # Si el valor es menor a 1, tratarlo como decimal (0.13 = 13%)
             # Si es mayor a 1, tratarlo como porcentaje (13 = 13%)
             if self.impuestos <= Decimal('1.00'):
@@ -40,7 +50,7 @@ class presupuesto(models.Model):
             else:
                 tasa_impuesto = self.impuestos / Decimal('100')  # Convertir porcentaje a decimal (13 -> 0.13)
             
-            # Calcular impuesto sobre total_detalles (después de descuentos) - igual que OrdenTrabajo
+            # Calcular impuesto sobre total_detalles (después de descuentos)
             impuesto_calculado = (total_detalles * tasa_impuesto).quantize(Decimal('0.01'))
         else:
             impuesto_calculado = Decimal('0.00')

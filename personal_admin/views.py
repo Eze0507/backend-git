@@ -29,6 +29,36 @@ from rest_framework.views import APIView
 from .serializers.serializers_user import UserSerializer
 
 
+# ===== FUNCIÓN HELPER PARA REGISTRAR EN BITÁCORA =====
+def registrar_bitacora(usuario, accion, modulo, descripcion, request=None):
+    """
+    Función helper para registrar acciones en la bitácora.
+    
+    Args:
+        usuario: Usuario que realiza la acción
+        accion: Acción realizada (Bitacora.Accion.CREAR, EDITAR, ELIMINAR, etc.)
+        modulo: Módulo donde se realiza la acción (Bitacora.Modulo.CARGO, CLIENTE, etc.)
+        descripcion: Descripción detallada de la acción
+        request: Objeto request para obtener la IP (opcional)
+    """
+    ip_address = None
+    if request:
+        # Obtener IP del request
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip_address = x_forwarded_for.split(',')[0]
+        else:
+            ip_address = request.META.get('REMOTE_ADDR')
+    
+    Bitacora.objects.create(
+        usuario=usuario,
+        accion=accion,
+        modulo=modulo,
+        descripcion=descripcion,
+        ip_address=ip_address
+    )
+
+
 # ---- ViewSets de tus compañeros ----
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
