@@ -196,3 +196,9 @@ CORS_ALLOW_ALL_ORIGINS = False
 # Permitir que el navegador envíe cookies en peticiones cross-origin
 CORS_ALLOW_CREDENTIALS = True
 API_KEY_IMGBB= config('API_KEY_IMGBB', default='')
+
+# ===========================
+# STRIPE CONFIGURATION
+# ===========================
+STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
+STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
