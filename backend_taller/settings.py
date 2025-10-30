@@ -31,7 +31,7 @@ if RAILWAY_STATIC_URL:
 
 # Para desarrollo local con tu IP
 if DEBUG:
-    ALLOWED_HOSTS.append("192.168.0.3")
+    ALLOWED_HOSTS.append("192.168.0.13")
 
 # Application definition
 
