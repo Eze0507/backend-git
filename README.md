@@ -39,7 +39,7 @@ paso previo: pip freeze > requirements.txt
 
 git add .
 
-git commit -m "mensaje descriptivo del cambio"
+git commit -m "Implementacion de Reconocimiento de placas"
 
 git pull origin main
 

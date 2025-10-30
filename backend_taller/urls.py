@@ -22,5 +22,7 @@ urlpatterns = [
     path('api/', include('clientes_servicios.urls')), 
     path('api/', include('personal_admin.urls')),
     path('api/', include('operaciones_inventario.urls')),
+    path('api/ia/', include('servicios_IA.urls')),
+    path('api/', include('finanzas_facturacion.urls')),  # Nueva ruta para pagos
     path('', admin.site.urls),
 ]
