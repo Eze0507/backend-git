@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'clientes_servicios',
     'finanzas_facturacion',
     'operaciones_inventario',
+    'servicios_IA',
     'django_filters', 
 
     # Paquetes externos
@@ -195,4 +196,8 @@ CORS_ALLOW_ALL_ORIGINS = False
 
 # Permitir que el navegador envíe cookies en peticiones cross-origin
 CORS_ALLOW_CREDENTIALS = True
-API_KEY_IMGBB= config('API_KEY_IMGBB', default='')
+API_KEY_IMGBB=config('API_KEY_IMGBB', default='')
+
+# Configuración para servicios de IA - Reconocimiento de placas
+PLATE_TOKEN = config('PLATE_TOKEN', default='')
+PLATE_REGIONS = config('PLATE_REGIONS', default='bo')
