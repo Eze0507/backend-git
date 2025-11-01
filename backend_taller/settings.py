@@ -201,3 +201,9 @@ API_KEY_IMGBB=config('API_KEY_IMGBB', default='')
 # Configuración para servicios de IA - Reconocimiento de placas
 PLATE_TOKEN = config('PLATE_TOKEN', default='')
 PLATE_REGIONS = config('PLATE_REGIONS', default='bo')
+
+# ===========================
+# STRIPE CONFIGURATION
+# ===========================
+STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
+STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
