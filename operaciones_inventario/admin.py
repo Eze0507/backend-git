@@ -2,6 +2,7 @@ from django.contrib import admin
 from .modelsArea import Area
 from .modelsItem import Item
 from .modelsVehiculos import Vehiculo, Marca, Modelo
+from .modelsProveedor import Proveedor
 
 @admin.register(Marca)
 class MarcaAdmin(admin.ModelAdmin):
@@ -37,6 +38,24 @@ class VehiculoAdmin(admin.ModelAdmin):
         ('Registro', {
             'fields': ('fecha_registro',),
             'classes': ('collapse',)
+        }),
+    )
+
+@admin.register(Proveedor)
+class ProveedorAdmin(admin.ModelAdmin):
+    list_display = ['nombre', 'nit', 'telefono', 'correo', 'contacto']
+    search_fields = ['nombre', 'nit', 'correo', 'telefono', 'contacto']
+    ordering = ['nombre']
+    
+    fieldsets = (
+        ('Información General', {
+            'fields': ('nombre', 'nit')
+        }),
+        ('Contacto', {
+            'fields': ('contacto', 'telefono', 'correo')
+        }),
+        ('Dirección', {
+            'fields': ('direccion',)
         }),
     )
 
