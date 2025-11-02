@@ -8,21 +8,27 @@ OrdenTrabajoCreateSerializer, NotaOrdenTrabajoSerializer, TareaOrdenTrabajoSeria
 inspeccionSerializer, PruebaRutaSerializer, AsignacionTecnicoSerializer, ImagenOrdenTrabajoSerializer)
 from personal_admin.views import registrar_bitacora
 from personal_admin.models import Bitacora
+from .permissions import IsClienteReadOnlyOrFullAccess
+from rest_framework.permissions import IsAuthenticated
 
 
 class OrdenTrabajoViewSet(viewsets.ModelViewSet):
     queryset = OrdenTrabajo.objects.all()
-    
+    permission_classes = [IsAuthenticated, IsClienteReadOnlyOrFullAccess]
+
     def get_serializer_class(self):
         """Usar diferentes serializers según la acción"""
         if self.action == 'create':
             return OrdenTrabajoCreateSerializer  
         return OrdenTrabajoSerializer         
     
-    def get_queryset(self):
-        """Optimizar consultas con select_related y prefetch_related"""
-        return OrdenTrabajo.objects.select_related(
-            'cliente', 'vehiculo'
+    def get_queryset(self): 
+        user = self.request.user
+        base_queryset = OrdenTrabajo.objects.all()
+        if user.groups.filter(name='cliente').exists():
+            base_queryset = base_queryset.filter(cliente__usuario=user) 
+        return base_queryset.select_related(
+        'cliente', 'vehiculo'
         ).prefetch_related('detalles', 'detalles__item', 'notas', 'tareas', 'inventario_vehiculo', 'inspecciones', 'pruebas_ruta', 'asignaciones_tecnicos', 'imagenes')
     
     def perform_create(self, serializer):

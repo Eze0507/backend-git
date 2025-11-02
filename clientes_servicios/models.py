@@ -37,3 +37,98 @@ class Cliente(models.Model):
         return f"{full} – {self.nit}"
 
 
+class Cita(models.Model):
+    """Modelo para gestionar citas del taller"""
+    
+    ESTADO_CHOICES = [
+        ('pendiente', 'Pendiente'),
+        ('confirmada', 'Confirmada'),
+        ('cancelada', 'Cancelada'),
+        ('completada', 'Completada'),
+    ]
+    
+    TIPO_CITA_CHOICES = [
+        ('reparacion', 'Reparación'),
+        ('mantenimiento', 'Mantenimiento'),
+        ('diagnostico', 'Diagnóstico'),
+        ('entrega', 'Entrega'),
+    ]
+    
+    cliente = models.ForeignKey(
+        Cliente,
+        on_delete=models.CASCADE,
+        related_name='citas',
+        verbose_name='Cliente'
+    )
+    
+    vehiculo = models.ForeignKey(
+        'operaciones_inventario.Vehiculo',
+        on_delete=models.CASCADE,
+        related_name='citas',
+        verbose_name='Vehículo',
+        null=True,
+        blank=True
+    )
+    
+    empleado = models.ForeignKey(
+        'personal_admin.Empleado',
+        on_delete=models.SET_NULL,
+        related_name='citas',
+        verbose_name='Empleado',
+        null=True,
+        blank=True
+    )
+    
+    fecha_hora_inicio = models.DateTimeField(verbose_name='Fecha y Hora de Inicio')
+    fecha_hora_fin = models.DateTimeField(verbose_name='Fecha y Hora de Fin')
+    
+    tipo_cita = models.CharField(
+        max_length=20,
+        choices=TIPO_CITA_CHOICES,
+        default='reparacion',
+        verbose_name='Tipo de Cita'
+    )
+    
+    estado = models.CharField(
+        max_length=20,
+        choices=ESTADO_CHOICES,
+        default='pendiente',
+        verbose_name='Estado'
+    )
+    
+    descripcion = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Descripción'
+    )
+    
+    nota = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Nota'
+    )
+    
+    fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de Creación')
+    fecha_actualizacion = models.DateTimeField(auto_now=True, verbose_name='Fecha de Actualización')
+    
+    class Meta:
+        ordering = ['fecha_hora_inicio']
+        verbose_name = 'Cita'
+        verbose_name_plural = 'Citas'
+        indexes = [
+            models.Index(fields=['fecha_hora_inicio']),
+            models.Index(fields=['estado']),
+            models.Index(fields=['empleado']),
+        ]
+    
+    def get_tipo_cita_display(self):
+        return dict(self.TIPO_CITA_CHOICES).get(self.tipo_cita, self.tipo_cita)
+    
+    def get_estado_display(self):
+        return dict(self.ESTADO_CHOICES).get(self.estado, self.estado)
+    
+    def __str__(self):
+        cliente_nombre = f"{self.cliente.nombre} {self.cliente.apellido}".strip() if self.cliente else "Sin cliente"
+        return f"Cita #{self.id} - {cliente_nombre} - {self.fecha_hora_inicio.strftime('%d/%m/%Y %H:%M') if self.fecha_hora_inicio else 'Sin fecha'}"
+
+

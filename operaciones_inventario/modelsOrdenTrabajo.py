@@ -39,6 +39,7 @@ class OrdenTrabajo(models.Model):
     observaciones = models.TextField(null=True, blank=True)
     vehiculo = models.ForeignKey(Vehiculo, on_delete=models.CASCADE, related_name='ordenes')
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name='ordenes')
+    pago = models.BooleanField(default=False)
     
     def recalcular_totales(self):
         detalles = self.detalles.all()

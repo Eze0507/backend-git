@@ -34,11 +34,12 @@ class VehiculoListSerializer(serializers.ModelSerializer):
     cliente_nombre = serializers.SerializerMethodField()
     marca_nombre = serializers.SerializerMethodField()
     modelo_nombre = serializers.SerializerMethodField()
+    cliente = serializers.PrimaryKeyRelatedField(read_only=True)  # Agregar ID del cliente para filtrado
     
     class Meta:
         model = Vehiculo
         fields = [
-            'id', 'cliente_nombre', 'marca_nombre', 'modelo_nombre', 
+            'id', 'cliente', 'cliente_nombre', 'marca_nombre', 'modelo_nombre', 
             'numero_placa', 'color', 'año', 'fecha_registro'
         ]
     
