@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from ..modelsPagos import Pago
+from ..models import Pago
 from operaciones_inventario.modelsOrdenTrabajo import OrdenTrabajo
 
 
@@ -29,8 +29,7 @@ class PagoSerializer(serializers.ModelSerializer):
             'fecha_pago',
             'fecha_actualizacion',
             'stripe_payment_intent_id',
-            'stripe_charge_id',
-            'stripe_customer_id',
+            'currency',
             'descripcion',
             'numero_referencia',
             'usuario',
@@ -39,9 +38,7 @@ class PagoSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'fecha_pago', 
             'fecha_actualizacion',
-            'stripe_payment_intent_id', 
-            'stripe_charge_id',
-            'stripe_customer_id'
+            'stripe_payment_intent_id'
         ]
     
     def get_cliente_nombre(self, obj):
