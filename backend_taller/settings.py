@@ -21,7 +21,7 @@ RAILWAY_PUBLIC_DOMAIN = config('RAILWAY_PUBLIC_DOMAIN', default='')
 RAILWAY_STATIC_URL = config('RAILWAY_STATIC_URL', default='')
 
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "backend-git-production.up.railway.app"]
-    
+
 if RAILWAY_PUBLIC_DOMAIN:
     ALLOWED_HOSTS.append(RAILWAY_PUBLIC_DOMAIN)
 

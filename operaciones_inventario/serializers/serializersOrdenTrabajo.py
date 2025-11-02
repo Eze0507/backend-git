@@ -108,7 +108,7 @@ class OrdenTrabajoSerializer(serializers.ModelSerializer):
             'id', 'fallo_requerimiento', 'estado', 'fecha_creacion',
             'fecha_inicio', 'fecha_finalizacion', 'fecha_entrega',
             'kilometraje', 'nivel_combustible', 'observaciones',
-            'subtotal', 'impuesto', 'total', 'descuento',
+            'subtotal', 'impuesto', 'total', 'descuento', 'pago',
             'vehiculo', 'cliente', 'cliente_nombre', 'cliente_telefono',
             'vehiculo_placa','vehiculo_modelo' ,'vehiculo_marca', 'detalles',
             'notas', 'tareas', 'inventario_vehiculo', 'inspecciones', 'pruebas_ruta',
