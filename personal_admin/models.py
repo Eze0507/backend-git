@@ -60,6 +60,7 @@ class Bitacora(models.Model):
         PRESUPUESTO = "Presupuesto", "Presupuesto"
         AUTENTICACION = "Autenticacion", "Autenticación"
         RECONOCIMIENTO_PLACAS = "ReconocimientoPlacas", "Reconocimiento de Placas"
+        CITA = "Cita", "Cita"
     
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bitacoras')
     accion = models.CharField(max_length=20, choices=Accion.choices)

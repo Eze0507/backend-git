@@ -16,10 +16,11 @@ urlpatterns = [
 ]
 """
 from rest_framework.routers import DefaultRouter
-from .views import ClienteViewSet
+from .views import ClienteViewSet, CitaViewSet
 
 router = DefaultRouter()
 router.register(r'clientes', ClienteViewSet, basename='cliente')
+router.register(r'citas', CitaViewSet, basename='cita')
 
 urlpatterns = router.urls
 

@@ -72,7 +72,7 @@ class EmpleadoProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Empleado
         fields = [
-            'nombre', 'apellido', 'direccion', 'telefono', 
+            'id', 'nombre', 'apellido', 'direccion', 'telefono', 
             'ci', 'username', 'email'
         ]
     
