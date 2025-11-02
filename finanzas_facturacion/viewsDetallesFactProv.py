@@ -56,6 +56,13 @@ class DetalleFacturaProveedorViewSet(viewsets.ModelViewSet):
         """
         Obtener resumen de totales de una factura
         Parámetro requerido: factura_id
+        
+        Retorna:
+        - total_items: Suma de todas las cantidades de items
+        - total_subtotal: Suma de subtotales (cantidad × precio) sin descuentos
+        - total_descuento: Suma de todos los descuentos por item
+        - total_final: Suma de totales (subtotal - descuento por cada item)
+        - cantidad_detalles: Número de líneas de detalle
         """
         factura_id = request.query_params.get('factura_id')
         
@@ -75,6 +82,11 @@ class DetalleFacturaProveedorViewSet(viewsets.ModelViewSet):
             total_final=Sum('total')
         )
         
+        # Agregar valores por defecto si no hay detalles
+        resumen['total_items'] = resumen['total_items'] or 0
+        resumen['total_subtotal'] = resumen['total_subtotal'] or 0
+        resumen['total_descuento'] = resumen['total_descuento'] or 0
+        resumen['total_final'] = resumen['total_final'] or 0
         resumen['cantidad_detalles'] = detalles.count()
         
         return Response(resumen)

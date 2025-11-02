@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Sum
 from operaciones_inventario.modelsProveedor import Proveedor
 
 class FacturaProveedor(models.Model):
@@ -13,11 +14,34 @@ class FacturaProveedor(models.Model):
     impuesto = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Monto calculado del IVA")
     total = models.DecimalField(max_digits=10, decimal_places=2)
     proveedor = models.ForeignKey(Proveedor, on_delete=models.CASCADE, related_name='facturas_proveedor')
+    
     class Meta:
         db_table = 'factura_proveedor'
         verbose_name = 'Factura de Proveedor'
         verbose_name_plural = 'Facturas de Proveedor'
         ordering = ['id']
+
+    def recalcular_desde_detalles(self):
+        """
+        Recalcula el subtotal de la factura basándose en la suma de los totales de los detalles.
+        El total de cada detalle ya incluye los descuentos por item.
+        Este método debe llamarse después de agregar, editar o eliminar detalles.
+        IMPORTANTE: Mantiene los porcentajes de descuento e IVA que ya estaban configurados.
+        """
+        resultado = self.detalles.aggregate(
+            total_detalles=Sum('total')
+        )
+        
+        # Si hay detalles, actualizar el subtotal con la suma de totales
+        # (los totales de detalles ya incluyen descuentos por item)
+        if resultado['total_detalles'] is not None:
+            self.subtotal = resultado['total_detalles']
+        else:
+            # Si no hay detalles, el subtotal es 0
+            self.subtotal = 0
+        
+        # Recalcular descuento, impuesto y total usando los porcentajes existentes
+        self.calcular_montos()
 
     def calcular_montos(self):
         """Calcula descuento, impuesto y total basado en porcentajes"""

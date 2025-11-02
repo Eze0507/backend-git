@@ -22,7 +22,8 @@ class FacturaProveedorSerializer(serializers.ModelSerializer):
             'proveedor_nombre',
             'proveedor_nit'
         ]
-        read_only_fields = ['id', 'descuento', 'impuesto', 'total']
+        # Los montos calculados son read-only, pero los porcentajes son editables
+        read_only_fields = ['id', 'descuento', 'impuesto', 'total', 'proveedor_nombre', 'proveedor_nit']
     
     def validate_numero(self, value):
         """Validar que el número de factura sea único"""
