@@ -16,13 +16,20 @@ urlpatterns = [
 ]
 """
 from rest_framework.routers import DefaultRouter
+from django.urls import path
 from .views import ClienteViewSet, CitaViewSet
+from .views_cita import CitaClienteViewSet, CalendarioEmpleadoView
 
 router = DefaultRouter()
 router.register(r'clientes', ClienteViewSet, basename='cliente')
 router.register(r'citas', CitaViewSet, basename='cita')
+router.register(r'citas-cliente', CitaClienteViewSet, basename='cita-cliente')
 
-urlpatterns = router.urls
+# IMPORTANTE: La ruta manual debe ir ANTES del router para que tenga prioridad
+urlpatterns = [
+    # Endpoint independiente para calendario (fuera del ViewSet para evitar 302)
+    path('citas-cliente/empleado/<int:empleado_id>/calendario/', CalendarioEmpleadoView.as_view(), name='calendario-empleado'),
+] + router.urls
 
 
 
