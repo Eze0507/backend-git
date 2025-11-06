@@ -460,4 +460,23 @@ class PagoViewSet(viewsets.ModelViewSet):
             estado='completado',
             usuario=self.request.user
         )
+        
+        # Actualizar estado de pago de la orden
+        if pago.orden_trabajo:
+            pago.orden_trabajo.pago = True
+            pago.orden_trabajo.save(update_fields=['pago'])
+            logger.info(f"✅ Orden #{pago.orden_trabajo.id} marcada como pagada")
+        
+        # Registrar en bitácora
+        try:
+            registrar_bitacora(
+                usuario=self.request.user,
+                accion=Bitacora.Accion.CREAR,
+                modulo=Bitacora.Modulo.FINANZAS,
+                descripcion=f"Pago manual registrado: {pago.metodo_pago} por Bs.{pago.monto} para orden #{pago.orden_trabajo.id if pago.orden_trabajo else 'N/A'}",
+                request=self.request
+            )
+        except Exception as e:
+            logger.warning(f"⚠️ No se pudo registrar en bitácora: {e}")
+        
         logger.info(f"✅ Pago manual #{pago.id} creado: {pago.metodo_pago} por Bs.{pago.monto}")
