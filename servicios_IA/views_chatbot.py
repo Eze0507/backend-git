@@ -41,6 +41,7 @@ class GeminiChatView(APIView):
                 "top_k": 1,
                 "max_output_tokens": 1024,
             }
+            
             safety_settings = {
                 HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
                 HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
