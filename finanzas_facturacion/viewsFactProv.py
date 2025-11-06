@@ -53,6 +53,26 @@ class FacturaProveedorViewSet(viewsets.ModelViewSet):
         
         return Response(serializer.data)
 
+    @action(detail=True, methods=['post'])
+    def recalcular(self, request, pk=None):
+        """
+        Recalcular el subtotal, descuento, impuesto y total de una factura
+        basándose en los detalles actuales.
+        """
+        factura = self.get_object()
+        
+        # Recalcular desde detalles
+        factura.recalcular_desde_detalles()
+        factura.save()
+        
+        # Serializar y devolver la factura actualizada
+        serializer = self.get_serializer(factura)
+        
+        return Response({
+            'mensaje': 'Factura recalculada correctamente',
+            'factura': serializer.data
+        })
+
     @action(detail=False, methods=['get'])
     def por_proveedor(self, request):
         """

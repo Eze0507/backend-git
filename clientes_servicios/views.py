@@ -128,31 +128,45 @@ class CitaViewSet(viewsets.ModelViewSet):
         - Administrador: Ve todas las citas
         - Empleado: Solo ve sus propias citas (donde es el empleado asignado)
         """
-        user = self.request.user
-        
-        # Verificar si el usuario es administrador (tiene el grupo 'administrador')
-        is_admin = user.groups.filter(name='administrador').exists()
-        
+        # Obtener request y usuario de forma segura: durante la generación de rutas
+        # (p. ej. DRF DefaultRouter root) self.request puede no estar disponible,
+        # y request.user puede ser AnonymousUser sin atributo 'groups'. Evitar
+        # AttributeError comprobando existencia y autenticación primero.
+        request = getattr(self, 'request', None)
+        user = getattr(request, 'user', None)
+
+        # Verificar si el usuario está autenticado y es administrador
+        is_admin = False
+        if user and getattr(user, 'is_authenticated', False):
+            try:
+                is_admin = user.groups.filter(name='administrador').exists()
+            except Exception:
+                # En caso de que user no tenga 'groups' por algún motivo,
+                # no tratar al usuario como admin
+                is_admin = False
+
         # Construir queryset base
         queryset = Cita.objects.select_related(
             'cliente', 'empleado'
         ).select_related('vehiculo').prefetch_related('cliente__usuario')
-        
-        # Si NO es administrador, filtrar por empleado
+
+        # Si NO es administrador y el usuario está autenticado, filtrar por empleado
         if not is_admin:
-            # Buscar el empleado por NOMBRE (no por usuario asociado)
-            # Si el usuario autenticado es "pastor", buscar un empleado con nombre "pastor"
-            # sin importar qué usuario esté asociado en el campo "usuario"
-            empleado = Empleado.objects.filter(
-                nombre__iexact=user.username,
-                estado=True
-            ).first()
-            
-            if empleado:
-                # Solo mostrar citas donde este empleado está asignado
-                queryset = queryset.filter(empleado=empleado)
+            if user and getattr(user, 'is_authenticated', False):
+                # Buscar el empleado por NOMBRE (no por usuario asociado)
+                empleado = Empleado.objects.filter(
+                    nombre__iexact=user.username,
+                    estado=True
+                ).first()
+
+                if empleado:
+                    # Solo mostrar citas donde este empleado está asignado
+                    queryset = queryset.filter(empleado=empleado)
+                else:
+                    # Si no se encuentra el empleado por nombre, no mostrar citas
+                    queryset = queryset.none()
             else:
-                # Si no se encuentra el empleado por nombre, no mostrar citas
+                # Usuario no autenticado: no mostrar citas
                 queryset = queryset.none()
         
         # Filtros adicionales por query params

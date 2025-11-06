@@ -18,5 +18,22 @@ class DetalleFacturaProveedor(models.Model):
         verbose_name_plural = 'Detalles de Factura de Proveedor'
         ordering = ['id']
 
+    def save(self, *args, **kwargs):
+        """Guardar el detalle y actualizar la factura"""
+        super().save(*args, **kwargs)
+        
+        # Recalcular el subtotal de la factura desde los detalles
+        self.factura.recalcular_desde_detalles()
+        self.factura.save()
+
+    def delete(self, *args, **kwargs):
+        """Eliminar el detalle y actualizar la factura"""
+        factura = self.factura
+        super().delete(*args, **kwargs)
+        
+        # Recalcular el subtotal de la factura desde los detalles restantes
+        factura.recalcular_desde_detalles()
+        factura.save()
+
     def __str__(self):
         return f"Detalle {self.id} - {self.item.nombre} ({self.factura.numero})"
