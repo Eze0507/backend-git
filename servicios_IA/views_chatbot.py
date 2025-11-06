@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 class GeminiChatView(APIView):
     """
@@ -40,11 +41,25 @@ class GeminiChatView(APIView):
                 "top_k": 1,
                 "max_output_tokens": 1024,
             }
-
+            safety_settings = {
+                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+            }
+            
+            INSTRUCCIONES = """
+            Eres 'AutoBot', el asistente virtual de AutoFix.
+            Ayudas con dudas generales sobre mecánica y servicios del taller.
+            Sé breve, amable y profesional.
+            """
+            
             # Inicializar el modelo (usa 'gemini-pro' o 'gemini-1.5-flash' si quieres más velocidad)
             model = genai.GenerativeModel(
                 model_name="gemini-2.5-flash",  # <--- Usa este nombre, es el más compatible.
                 generation_config=generation_config,
+                safety_settings=safety_settings,
+                system_instruction=INSTRUCCIONES
             )
 
             # 4. Generar respuesta
