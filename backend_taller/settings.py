@@ -20,7 +20,7 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 RAILWAY_PUBLIC_DOMAIN = config('RAILWAY_PUBLIC_DOMAIN', default='')
 RAILWAY_STATIC_URL = config('RAILWAY_STATIC_URL', default='')
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "backend-git-production.up.railway.app"]
+ALLOWED_HOSTS = ["192.168.0.3","localhost", "127.0.0.1", "backend-git-production.up.railway.app"]
 
 if RAILWAY_PUBLIC_DOMAIN:
     ALLOWED_HOSTS.append(RAILWAY_PUBLIC_DOMAIN)
@@ -31,7 +31,7 @@ if RAILWAY_STATIC_URL:
 
 # Para desarrollo local con tu IP
 if DEBUG:
-    ALLOWED_HOSTS.append("192.168.0.5")
+    ALLOWED_HOSTS.append("192.168.0.14")
 
 # Application definition
 
@@ -161,9 +161,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:5174",
     "http://127.0.0.1:5174",
-    "http://192.168.0.5:5173",
-    "http://192.168.0.5:3000",
-    "http://192.168.0.5:8000",
+    "http://192.168.0.3:5173",
+    "http://192.168.0.3:3000",
+    "http://192.168.0.3:8000",
 ]
 if not DEBUG:
     CSRF_COOKIE_SECURE = True
@@ -187,9 +187,9 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:5174",
     "http://127.0.0.1:5174",
-    "http://192.168.0.5:5173",
-    "http://192.168.0.5:3000",
-    "http://192.168.0.5:8000",
+    "http://192.168.0.3:5173",
+    "http://192.168.0.3:3000",
+    "http://192.168.0.3:8000",
 ]
 
 # Agregar dominio de Railway a CSRF trusted origins
@@ -214,3 +214,4 @@ PLATE_REGIONS = config('PLATE_REGIONS', default='bo')
 # ===========================
 STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
 STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
+GEMINI_API_KEY = config('GEMINI_API_KEY', default='')

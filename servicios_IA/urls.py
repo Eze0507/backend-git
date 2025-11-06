@@ -11,4 +11,10 @@ router.register(r'reportes', ReporteViewSet, basename='reporte')
 urlpatterns = [
     path("alpr/", AlprScanView.as_view(), name="alpr-scan"),
     path("", include(router.urls)),
+from .views_chatbot import GeminiChatView
+
+
+urlpatterns = [
+    path("alpr/", AlprScanView.as_view(), name="alpr-scan"),
+    path("chatbot/", GeminiChatView.as_view(), name="chatbot"),
 ]
