@@ -14,6 +14,8 @@ import time
 import json
 
 from .models import Reporte
+from personal_admin.views import registrar_bitacora
+from personal_admin.models import Bitacora
 from .serializersReporte import (
     ReporteSerializer,
     GenerarReporteEstaticoSerializer,
@@ -165,6 +167,16 @@ class ReporteViewSet(viewsets.ModelViewSet):
             # Guardar el archivo
             reporte.archivo.save(nombre_archivo, archivo, save=True)
             
+            # Registrar en bitácora
+            descripcion = f"Reporte estático '{config['nombre']}' generado en formato {formato}. Registros procesados: {len(datos['registros'])}, Tiempo: {round(tiempo_generacion, 2)}s"
+            registrar_bitacora(
+                usuario=request.user,
+                accion=Bitacora.Accion.CREAR,
+                modulo=Bitacora.Modulo.REPORTE,
+                descripcion=descripcion,
+                request=request
+            )
+            
             return Response({
                 'success': True,
                 'message': 'Reporte generado exitosamente',
@@ -190,6 +202,16 @@ class ReporteViewSet(viewsets.ModelViewSet):
                 'success': False,
                 'error': 'Este reporte no tiene archivo asociado'
             }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Registrar en bitácora la descarga
+        descripcion = f"Descarga de reporte '{reporte.nombre}' (ID: {reporte.id}, Tipo: {reporte.tipo}, Formato: {reporte.formato})"
+        registrar_bitacora(
+            usuario=request.user,
+            accion=Bitacora.Accion.CONSULTAR,
+            modulo=Bitacora.Modulo.REPORTE,
+            descripcion=descripcion,
+            request=request
+        )
         
         # Devolver el archivo
         response = FileResponse(
@@ -332,6 +354,16 @@ class ReporteViewSet(viewsets.ModelViewSet):
             # Guardar el archivo
             reporte.archivo.save(nombre_archivo, archivo, save=True)
             
+            # Registrar en bitácora
+            descripcion = f"Reporte personalizado '{data['nombre']}' generado para entidad {config_entidad['nombre']} en formato {data['formato']}. Campos: {len(data['campos'])}, Filtros: {len(data.get('filtros', {}))}, Registros: {len(registros)}, Tiempo: {round(tiempo_generacion, 2)}s"
+            registrar_bitacora(
+                usuario=request.user,
+                accion=Bitacora.Accion.CREAR,
+                modulo=Bitacora.Modulo.REPORTE,
+                descripcion=descripcion,
+                request=request
+            )
+            
             from .serializersReporte import ReporteSerializer
             return Response({
                 'success': True,
@@ -469,6 +501,16 @@ class ReporteViewSet(viewsets.ModelViewSet):
             
             # Guardar el archivo
             reporte.archivo.save(nombre_archivo, archivo, save=True)
+            
+            # Registrar en bitácora
+            descripcion = f"Reporte con lenguaje natural '{nombre}' generado. Consulta: '{consulta}'. Entidad: {config_entidad['nombre']}, Formato: {data['formato']}, Registros: {len(registros)}, Tiempo: {round(tiempo_generacion, 2)}s"
+            registrar_bitacora(
+                usuario=request.user,
+                accion=Bitacora.Accion.CREAR,
+                modulo=Bitacora.Modulo.REPORTE,
+                descripcion=descripcion,
+                request=request
+            )
             
             return Response({
                 'success': True,
