@@ -31,7 +31,7 @@ if RAILWAY_STATIC_URL:
 
 # Para desarrollo local con tu IP
 if DEBUG:
-    ALLOWED_HOSTS.append("192.168.0.5")
+    ALLOWED_HOSTS.append("192.168.0.14")
 
 # Application definition
 
@@ -207,3 +207,4 @@ PLATE_REGIONS = config('PLATE_REGIONS', default='bo')
 # ===========================
 STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
 STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
+GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
