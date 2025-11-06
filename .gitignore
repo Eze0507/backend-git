@@ -8,3 +8,8 @@ db.sqlite3
 !.vscode/extensions.json
 */migrations/*.pyc
 */migrations/__pycache__/
+
+# Media files (reportes generados)
+media/*
+!media/.gitkeep
+!media/reportes/.gitkeep
