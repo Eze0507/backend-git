@@ -153,17 +153,13 @@ class CitaViewSet(viewsets.ModelViewSet):
         # Si NO es administrador y el usuario está autenticado, filtrar por empleado
         if not is_admin:
             if user and getattr(user, 'is_authenticated', False):
-                # Buscar el empleado por NOMBRE (no por usuario asociado)
-                empleado = Empleado.objects.filter(
-                    nombre__iexact=user.username,
-                    estado=True
-                ).first()
-
-                if empleado:
+                # Buscar el empleado por su usuario asociado (relación directa por ID)
+                try:
+                    empleado = Empleado.objects.get(usuario=user, estado=True)
                     # Solo mostrar citas donde este empleado está asignado
                     queryset = queryset.filter(empleado=empleado)
-                else:
-                    # Si no se encuentra el empleado por nombre, no mostrar citas
+                except Empleado.DoesNotExist:
+                    # Si no se encuentra el empleado asociado al usuario, no mostrar citas
                     queryset = queryset.none()
             else:
                 # Usuario no autenticado: no mostrar citas
@@ -203,8 +199,21 @@ class CitaViewSet(viewsets.ModelViewSet):
         """Crear cita y registrar en bitácora"""
         user = self.request.user
         
-        # Crear la cita con el empleado que se especificó en el formulario
-        instance = serializer.save()
+        # Si no se especificó empleado, asignar automáticamente al empleado autenticado
+        empleado_asignado = serializer.validated_data.get('empleado')
+        
+        if not empleado_asignado:
+            # Buscar el empleado asociado al usuario autenticado
+            try:
+                empleado_actual = Empleado.objects.get(usuario=user, estado=True)
+                # Asignar el empleado antes de guardar
+                instance = serializer.save(empleado=empleado_actual)
+            except Empleado.DoesNotExist:
+                # Si no es empleado, guardar sin asignar empleado (puede ser admin)
+                instance = serializer.save()
+        else:
+            # Si se especificó empleado, usar ese
+            instance = serializer.save()
         
         # Preparar información para bitácora
         is_admin = user.groups.filter(name='administrador').exists()

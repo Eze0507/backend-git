@@ -49,6 +49,54 @@ class ReporteViewSet(viewsets.ModelViewSet):
             'reportes': reportes
         })
     
+    @action(detail=False, methods=['get'])
+    def entidades(self, request):
+        """
+        Lista las entidades disponibles para reportes personalizados
+        GET /api/ia/reportes/entidades/
+        """
+        from .utils.whitelist import obtener_entidades
+        entidades = obtener_entidades()
+        return Response({
+            'success': True,
+            'entidades': list(entidades.values())
+        })
+    
+    @action(detail=False, methods=['get'], url_path='entidades/(?P<entidad_id>[^/.]+)/campos')
+    def campos_entidad(self, request, entidad_id=None):
+        """
+        Obtiene los campos y filtros disponibles para una entidad
+        GET /api/ia/reportes/entidades/{entidad_id}/campos/
+        """
+        from .utils.whitelist import obtener_config_entidad
+        
+        config = obtener_config_entidad(entidad_id)
+        if not config:
+            return Response({
+                'success': False,
+                'error': 'Entidad no encontrada'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        return Response({
+            'success': True,
+            'entidad': config['nombre'],
+            'campos': [
+                {
+                    'id': key,
+                    'label': value['label'],
+                    'tipo': value['tipo']
+                }
+                for key, value in config['campos_disponibles'].items()
+            ],
+            'filtros': [
+                {
+                    'id': key,
+                    **value
+                }
+                for key, value in config['filtros_disponibles'].items()
+            ]
+        })
+    
     @action(detail=False, methods=['post'])
     def generar_estatico(self, request):
         """
