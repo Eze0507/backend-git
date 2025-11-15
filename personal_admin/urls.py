@@ -18,8 +18,11 @@ from .views import (
     ChangePasswordView, 
     CustomTokenObtainPairView,
     BitacoraViewSet,
-    UserProfileView
-    , MeView
+    UserProfileView,
+    MeView,
+    TallerRegistrationView,
+    TenantProfileView,
+    ClienteRegistrationView
 )
 
 app_name = 'personal_admin'  # ← añadido para evitar conflictos de nombres
@@ -51,6 +54,9 @@ urlpatterns = [
     path('cliente/profile/', ClienteProfileUpdateView.as_view(), name='cliente-profile-update'),
     path('empleado/profile/', EmpleadoProfileUpdateView.as_view(), name='empleado-profile-update'),
     path('auth/me/', MeView.as_view(), name='me'),
+    path('taller/', TallerRegistrationView.as_view(), name='register-taller'),
+    path('cliente-registro/', ClienteRegistrationView.as_view(), name='register-cliente'),
+    path('perfil-taller/', TenantProfileView.as_view(), name='tenant-profile')
 ]
 
 

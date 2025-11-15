@@ -27,8 +27,15 @@ from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from .serializers.serializers_user import UserSerializer
-from .models_saas import UserProfile
-
+from .models_saas import UserProfile, Tenant
+from .serializers.serializers_tenant import TallerRegistrationSerializer
+from .serializers.serializers_tenantProfile import TenantProfileSerializer
+from .serializers.serializers_userInvit import ClienteRegistrationSerializer
+from rest_framework.generics import RetrieveUpdateAPIView
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.response import Response
+import requests
+from django.conf import settings
 
 # ===== FUNCIÓN HELPER PARA REGISTRAR EN BITÁCORA =====
 def registrar_bitacora(usuario, accion, modulo, descripcion, request=None):
@@ -716,3 +723,80 @@ class MeView(APIView):
     def get(self, request):
         serializer = UserSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+class TallerRegistrationView(APIView):
+    """
+    API pública para registrar un NUEVO Taller (Tenant).
+    Crea el Taller, el Usuario Propietario y el UserProfile.
+    """
+    permission_classes = [AllowAny] 
+
+    def post(self, request):
+        serializer = TallerRegistrationSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user = serializer.save() 
+            return Response(
+                {"message": f"Taller y usuario '{user.username}' creados exitosamente."},
+                status=status.HTTP_201_CREATED
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class TenantProfileView(RetrieveUpdateAPIView):
+    serializer_class = TenantProfileSerializer
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_object(self):
+        return self.request.user.profile.tenant
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = request.data.copy()
+        logo_file = request.FILES.get("logo_file")
+
+        if logo_file:
+            url = "https://api.imgbb.com/1/upload"
+            payload = {"key": settings.API_KEY_IMGBB}
+            files = {"image": logo_file.read()}
+            
+            try:
+                response = requests.post(url, data=payload, files=files)
+                response.raise_for_status() 
+                
+                if response.status_code == 200:
+                    image_url = response.json()["data"]["url"]
+                    data["logo"] = image_url
+                else:
+                    return Response(
+                        {"error": "Error al subir el logo a ImgBB"}, 
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+            except requests.exceptions.RequestException as e:
+                return Response(
+                    {"error": f"Error de conexión con ImgBB: {str(e)}"}, 
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        
+        partial = kwargs.pop('partial', False)
+        
+        serializer = self.get_serializer(instance, data=data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer) 
+
+        return Response(serializer.data)
+
+class ClienteRegistrationView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ClienteRegistrationSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user = serializer.save() 
+            
+            return Response(
+                {"message": f"Cliente '{user.username}' creado exitosamente."},
+                status=status.HTTP_201_CREATED
+            )
+            
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
