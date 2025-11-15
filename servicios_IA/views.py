@@ -21,6 +21,7 @@ class AlprScanView(APIView):
             return Response({"error": "Configura PLATE_TOKEN"}, status=500)
 
         # Aceptar: archivo multipart o base64
+        user_tenant = request.user.profile.tenant
         f = request.FILES.get("upload") or request.FILES.get("image")
         image_base64 = request.data.get("image_base64")
         
@@ -87,7 +88,7 @@ class AlprScanView(APIView):
         results = js.get("results", [])
 
         if not results:
-            l = LecturaPlaca.objects.create(placa="", score=0.0, camera_id=camera_id, vehiculo=None, match=False)
+            l = LecturaPlaca.objects.create(placa="", score=0.0, camera_id=camera_id, vehiculo=None, match=False, tenant=user_tenant)
             
             # Registrar en bitácora: No se detectó placa
             registrar_bitacora(
@@ -109,13 +110,14 @@ class AlprScanView(APIView):
         plate_raw = (best.get("plate") or "").upper()
         score     = float(best.get("score") or 0.0)
 
-        v_match = (Vehiculo.objects.filter(numero_placa__iexact=plate_raw)   # BD ya normalizada
+        v_match = (Vehiculo.objects.filter(tenant=user_tenant, numero_placa__iexact=plate_raw)   # BD ya normalizada
                 .select_related("cliente")
                 .first())
 
         lectura = LecturaPlaca.objects.create(
             placa=plate_raw, score=score, camera_id=camera_id,
-            vehiculo=v_match, match=bool(v_match)
+            vehiculo=v_match, match=bool(v_match),
+            tenant=user_tenant
         )
 
         from operaciones_inventario.serializers.serializersVehiculo import VehiculoDetailSerializer

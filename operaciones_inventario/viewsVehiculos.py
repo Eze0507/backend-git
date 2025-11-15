@@ -27,7 +27,6 @@ class VehiculoViewSet(viewsets.ModelViewSet):
     - DELETE /api/vehiculos/{id}/ - Eliminar un vehículo
     """
     
-    queryset = Vehiculo.objects.select_related('cliente', 'marca', 'modelo').all()
     
     def get_serializer_class(self):
         """Retorna el serializer apropiado según la acción"""
@@ -40,7 +39,12 @@ class VehiculoViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """Filtros opcionales para la consulta"""
-        queryset = super().get_queryset()
+        
+        user_tenant = self.request.user.profile.tenant
+        
+        queryset = Vehiculo.objects.filter(
+            tenant=user_tenant
+        ).select_related('cliente', 'marca', 'modelo')
         
         # Filtro por cliente
         cliente_id = self.request.query_params.get('cliente_id', None)
@@ -72,8 +76,29 @@ class VehiculoViewSet(viewsets.ModelViewSet):
         return queryset.order_by('-fecha_registro')
     
     def create(self, request, *args, **kwargs):
+        user_tenant = request.user.profile.tenant
+        
+        data = request.data.copy()
+        data['tenant'] = user_tenant.id
+        
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        try:
+            instance = serializer.save(tenant=user_tenant)
+        except Exception as e:
+            # Capturar error de placa duplicada (unique_together)
+            if 'vehiculo_numero_placa_tenant_id' in str(e):
+                return Response(
+                    {"numero_placa": ["Ya existe un vehículo con este número de placa en su taller."]}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            # Si es otro error, muéstralo
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
         """Crear un nuevo vehículo con registro en bitácora"""
-        response = super().create(request, *args, **kwargs)
+        headers = self.get_success_headers(serializer.data)
+        response = Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
         
         if response.status_code == status.HTTP_201_CREATED:
             # Obtener el vehículo creado usando el serializer para obtener el ID
@@ -155,7 +180,8 @@ class VehiculoViewSet(viewsets.ModelViewSet):
         Endpoint para obtener todas las marcas disponibles.
         Útil para autocompletado en el frontend.
         """
-        marcas = Marca.objects.all().order_by('nombre')
+        user_tenant = request.user.profile.tenant
+        marcas = Marca.objects.filter(tenant=user_tenant).order_by('nombre')
         serializer = MarcaSerializer(marcas, many=True)
         return Response(serializer.data)
     
@@ -168,7 +194,9 @@ class VehiculoViewSet(viewsets.ModelViewSet):
         Parámetros opcionales:
         - marca_id: Filtrar modelos por marca específica
         """
-        modelos = Modelo.objects.select_related('marca').all()
+        user_tenant = request.user.profile.tenant
+        
+        modelos = Modelo.objects.filter(tenant=user_tenant).select_related('marca')
         
         # Filtro por marca si se proporciona
         marca_id = request.query_params.get('marca_id', None)

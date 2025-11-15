@@ -94,16 +94,20 @@ class PresupuestoSerializer(serializers.ModelSerializer):
 		return Decimal('0.00')
 
 	def create(self, validated_data):
+		user_tenant = self.context['request'].user.profile.tenant
 		detalles_data = validated_data.pop('detalles', [])
-		presup = presupuesto.objects.create(**validated_data)
-		for det in detalles_data:
-			det['presupuesto'] = presup
-			detalle = detallePresupuesto(**det)
-			detalle.save()
+		presup = presupuesto.objects.create(tenant=user_tenant, **validated_data)
+		for det_data in detalles_data:
+			detallePresupuesto.objects.create(
+                presupuesto=presup, 
+                tenant=user_tenant,  # <-- ¡Aquí estaba el error!
+                **det_data
+            )
 		presup.recalcular_totales()
 		return presup
 
 	def update(self, instance, validated_data):
+		user_tenant = self.context['request'].user.profile.tenant
 		detalles_data = validated_data.pop('detalles', None)
 		# actualizar campos simples del presupuesto
 		for attr, value in validated_data.items():
@@ -114,19 +118,23 @@ class PresupuestoSerializer(serializers.ModelSerializer):
 			# upsert: actualizar detalles con id, crear los nuevos, borrar los que no vienen
 			existing = {d.id: d for d in instance.detalles.all()}
 			incoming_ids = []
-			for det in detalles_data:
-				det_id = det.get('id', None)
+			for det_data in detalles_data:
+				det_id = det_data.get('id', None)
 				if det_id and det_id in existing:
 					obj = existing[det_id]
-					for k, v in det.items():
+					for k, v in det_data.items():
 						if k != 'id':
 							setattr(obj, k, v)
 					obj.save()
 					incoming_ids.append(det_id)
 				else:
-					det['presupuesto'] = instance
-					new_det = detallePresupuesto(**det)
-					new_det.save()
+					det_data.pop('id', None)
+					det_data.pop('presupuesto', None)
+					new_det = detallePresupuesto.objects.create(
+                        presupuesto=instance,
+                        tenant=user_tenant, # <-- ¡Aquí estaba el error!
+                        **det_data
+                    )
 					incoming_ids.append(new_det.id)
 			# eliminar los que no están en incoming
 			for ex_id, ex_obj in existing.items():

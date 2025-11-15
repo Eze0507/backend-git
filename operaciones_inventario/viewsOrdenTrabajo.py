@@ -10,10 +10,10 @@ from personal_admin.views import registrar_bitacora
 from personal_admin.models import Bitacora
 from .permissions import IsClienteReadOnlyOrFullAccess
 from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import get_object_or_404
 
 
 class OrdenTrabajoViewSet(viewsets.ModelViewSet):
-    queryset = OrdenTrabajo.objects.all()
     permission_classes = [IsAuthenticated, IsClienteReadOnlyOrFullAccess]
 
     def get_serializer_class(self):
@@ -24,7 +24,8 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self): 
         user = self.request.user
-        base_queryset = OrdenTrabajo.objects.all()
+        user_tenant = user.profile.tenant
+        base_queryset = OrdenTrabajo.objects.filter(tenant=user_tenant)
         if user.groups.filter(name='cliente').exists():
             base_queryset = base_queryset.filter(cliente__usuario=user) 
         return base_queryset.select_related(
@@ -32,6 +33,7 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
         ).prefetch_related('detalles', 'detalles__item', 'notas', 'tareas', 'inventario_vehiculo', 'inspecciones', 'pruebas_ruta', 'asignaciones_tecnicos', 'imagenes')
     
     def perform_create(self, serializer):
+        user_tenant = self.request.user.profile.tenant
         # Primero, crea el objeto para tener su ID
         orden = serializer.save()
         
@@ -72,23 +74,25 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
 
 class DetalleOrdenTrabajoViewSet(viewsets.ModelViewSet):
     serializer_class = DetalleOrdenTrabajoSerializer
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         """Filtrar por orden si se pasa el parámetro"""
+        user_tennat = self.request.user.profile.tenant
+        queryset = DetalleOrdenTrabajo.objects.filter(tenant=user_tennat)
         if 'orden_pk' in self.kwargs:
-            return DetalleOrdenTrabajo.objects.filter(
-                orden_trabajo_id=self.kwargs['orden_pk']
-            ).select_related('item', 'orden_trabajo')
-        return DetalleOrdenTrabajo.objects.all()
+            queryset = queryset.filter(orden_trabajo_id=self.kwargs['orden_pk'])
+        return queryset.select_related('item', 'orden_trabajo')
 
     def perform_create(self, serializer):
         """Asignar la orden automáticamente y registrar en bitácora"""
+        user_tenant = self.request.user.profile.tenant
         orden = None
         if 'orden_pk' in self.kwargs:
-            orden = OrdenTrabajo.objects.get(pk=self.kwargs['orden_pk'])
-            detalle = serializer.save(orden_trabajo=orden)
+            orden = get_object_or_404(OrdenTrabajo, pk=self.kwargs['orden_pk'], tenant=user_tenant)
+            detalle = serializer.save(orden_trabajo=orden, tenant=user_tenant)
         else:
-            detalle = serializer.save()
+            detalle = serializer.save(tenant=user_tenant)
         # Registrar en la bitácora
         registrar_bitacora(
             usuario=self.request.user,
@@ -117,24 +121,22 @@ class DetalleOrdenTrabajoViewSet(viewsets.ModelViewSet):
 
 class NotaOrdenTrabajoViewSet(viewsets.ModelViewSet):
     serializer_class = NotaOrdenTrabajoSerializer
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         """Devuelve SÓLO las notas que pertenecen a la orden de la URL.
         Si 'orden_pk' no está, la petición fallará, lo cual es correcto."""
+        user_tenant = self.request.user.profile.tenant
         return NotaOrdenTrabajo.objects.filter(
+            tenant=user_tenant,
             orden_trabajo_id=self.kwargs['orden_pk']
         )
 
     def perform_create(self, serializer):
         """Asocia la nueva nota con la orden de la URL."""
-        orden = OrdenTrabajo.objects.get(pk=self.kwargs['orden_pk'])
-        serializer.save(orden_trabajo=orden)
-    
-    def perform_create(self, serializer):
-        # La lógica de asociar la orden ya está aquí, la reutilizamos
-        orden = OrdenTrabajo.objects.get(pk=self.kwargs['orden_pk'])
-        nota = serializer.save(orden_trabajo=orden)
-        
+        user_tenant = self.request.user.profile.tenant
+        orden = get_object_or_404(OrdenTrabajo, pk=self.kwargs['orden_pk'], tenant=user_tenant)
+        nota = serializer.save(orden_trabajo=orden, tenant=user_tenant)
         registrar_bitacora(
             usuario=self.request.user,
             accion=Bitacora.Accion.CREAR,
@@ -159,18 +161,22 @@ class NotaOrdenTrabajoViewSet(viewsets.ModelViewSet):
 
 class TareaOrdenTrabajoViewSet(viewsets.ModelViewSet):
     serializer_class = TareaOrdenTrabajoSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         """Devuelve SÓLO las tareas que pertenecen a la orden de la URL.
         Si 'orden_pk' no está, la petición fallará, lo cual es correcto."""
+        user_tenant = self.request.user.profile.tenant
         return TareaOrdenTrabajo.objects.filter(
+            tenant=user_tenant,
             orden_trabajo_id=self.kwargs['orden_pk']
         )
 
     def perform_create(self, serializer):
         """Asocia la nueva tarea con la orden y registra en bitácora."""
-        orden = OrdenTrabajo.objects.get(pk=self.kwargs['orden_pk'])
-        tarea = serializer.save(orden_trabajo=orden)
+        user_tenant = self.request.user.profile.tenant
+        orden = get_object_or_404(OrdenTrabajo, pk=self.kwargs['orden_pk'], tenant=user_tenant)
+        tarea = serializer.save(orden_trabajo=orden, tenant=user_tenant)
 
         # Registrar en la bitácora
         registrar_bitacora(
@@ -221,17 +227,21 @@ class inventarioVehiculoViewSet(mixins.CreateModelMixin,
                                 mixins.UpdateModelMixin, 
                                 viewsets.GenericViewSet):
     serializer_class = inventarioVehiculoSerializer
+    permission_classes = [IsAuthenticated] 
 
     def get_queryset(self):
         """Devuelve SÓLO los inventarios que pertenecen a la orden de la URL.
         Si 'orden_pk' no está, la petición fallará, lo cual es correcto."""
+        user_tenant = self.request.user.profile.tenant
         return InventarioVehiculo.objects.filter(
+            tenant=user_tenant,
             orden_trabajo_id=self.kwargs['orden_pk']
         )
 
     def perform_create(self, serializer):
         """Asocia el nuevo inventario con la orden de la URL."""
-        orden = OrdenTrabajo.objects.get(pk=self.kwargs['orden_pk'])
+        user_tenant = self.request.user.profile.tenant
+        orden = get_object_or_404(OrdenTrabajo, pk=self.kwargs['orden_pk'], tenant=user_tenant)
         serializer.save(orden_trabajo=orden)
     
     def perform_update(self, serializer):
@@ -248,18 +258,22 @@ class inventarioVehiculoViewSet(mixins.CreateModelMixin,
 
 class inspeccionViewSet(viewsets.ModelViewSet):
     serializer_class = inspeccionSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         """Devuelve SÓLO las inspecciones que pertenecen a la orden de la URL.
         Si 'orden_pk' no está, la petición fallará, lo cual es correcto."""
+        user_tenant = self.request.user.profile.tenant
         return Inspeccion.objects.filter(
+            Tenant=user_tenant,
             orden_trabajo_id=self.kwargs['orden_pk']
         ).select_related('tecnico')
 
     def perform_create(self, serializer):
         """Asocia la nueva inspección con la orden y registra en bitácora."""
-        orden = OrdenTrabajo.objects.get(pk=self.kwargs['orden_pk'])
-        inspeccion = serializer.save(orden_trabajo=orden)
+        user_tenant = self.request.user.profile.tenant
+        orden = get_object_or_404(OrdenTrabajo, pk=self.kwargs['orden_pk'], tenant=user_tenant)
+        inspeccion = serializer.save(orden_trabajo=orden, tenant=user_tenant)
 
         # Registrar en la bitácora
         registrar_bitacora(
@@ -301,17 +315,21 @@ class inspeccionViewSet(viewsets.ModelViewSet):
 
 class PruebaRutaViewSet(viewsets.ModelViewSet):
     serializer_class = PruebaRutaSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         """Devuelve SÓLO las pruebas de ruta que pertenecen a la orden de la URL."""
+        user_tenant = self.request.user.profile.tenant
         return PruebaRuta.objects.filter(
+            tenant=user_tenant,
             orden_trabajo_id=self.kwargs['orden_pk']
         ).select_related('tecnico')
         
     def perform_create(self, serializer):
         """Asocia la nueva prueba de ruta con la orden y registra en bitácora."""
-        orden = OrdenTrabajo.objects.get(pk=self.kwargs['orden_pk'])
-        prueba = serializer.save(orden_trabajo=orden)
+        user_tenant = self.request.user.profile.tenant
+        orden = get_object_or_404(OrdenTrabajo, pk=self.kwargs['orden_pk'], tenant=user_tenant)
+        prueba = serializer.save(orden_trabajo=orden, tenant=user_tenant)
 
         # Registrar en la bitácora
         registrar_bitacora(
@@ -356,23 +374,25 @@ class AsignacionTecnicoViewSet(viewsets.ModelViewSet):
     ViewSet para asignar, ver y eliminar técnicos de una orden de trabajo.
     """
     serializer_class = AsignacionTecnicoSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         """
         Filtra las asignaciones para devolver solo las de la orden de la URL.
         """
+        user_tenant = self.request.user.profile.tenant
         return AsignacionTecnico.objects.filter(
+            tenant=user_tenant,
             orden_trabajo_id=self.kwargs['orden_pk']
         ).select_related('tecnico') # Optimización para cargar datos del técnico
 
     def perform_create(self, serializer):
-        orden = OrdenTrabajo.objects.get(pk=self.kwargs['orden_pk'])
-        asignacion = serializer.save(orden_trabajo=orden)
+        user_tenant = self.request.user.profile.tenant
+        orden = get_object_or_404(OrdenTrabajo, pk=self.kwargs['orden_pk'], tenant=user_tenant)
+        asignacion = serializer.save(orden_trabajo=orden, tenant=user_tenant)
 
         nombre_tecnico = "N/A"
         if asignacion.tecnico:
-            # --- CORRECCIÓN AQUÍ ---
-            # Usamos '.nombre' en lugar de '.get_full_name()'
             nombre_tecnico = asignacion.tecnico.nombre or asignacion.tecnico.username
 
         registrar_bitacora(
@@ -408,17 +428,21 @@ class ImagenOrdenTrabajoViewSet(viewsets.ModelViewSet):
     incluyendo la subida de archivos a ImgBB.
     """
     serializer_class = ImagenOrdenTrabajoSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        user_tenant = self.request.user.profile.tenant
         return ImagenOrdenTrabajo.objects.filter(
+            tenant=user_tenant,
             orden_trabajo_id=self.kwargs['orden_pk']
         )
 
     def perform_create(self, serializer):
         """Asocia la nueva imagen con la orden y registra en bitácora."""
-        orden = OrdenTrabajo.objects.get(pk=self.kwargs['orden_pk'])
+        user_tenant = self.request.user.profile.tenant
+        orden = get_object_or_404(OrdenTrabajo, pk=self.kwargs['orden_pk'], tenant=user_tenant)
         # Guardamos la imagen primero para obtener la instancia
-        imagen = serializer.save(orden_trabajo=orden)
+        imagen = serializer.save(orden_trabajo=orden, tenant=user_tenant)
 
         registrar_bitacora(
             usuario=self.request.user,

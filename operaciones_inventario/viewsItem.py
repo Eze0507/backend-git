@@ -9,8 +9,12 @@ from personal_admin.views import registrar_bitacora
 from personal_admin.models import Bitacora
 
 class ItemViewSet(viewsets.ModelViewSet):
-    queryset = Item.objects.all()
+    
     serializer_class = ItemSerializer
+    
+    def get_queryset(self):
+        user_tenant = self.request.user.profile.tenant
+        return Item.objects.filter(tenant=user_tenant)
 
     def create(self, request, *args, **kwargs):
         return self.handle_image_upload(request, is_update=False)
@@ -61,7 +65,9 @@ class ItemViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(data=data)
 
         if serializer.is_valid():
-            instance = serializer.save()
+            
+            user_tenant = request.user.profile.tenant
+            instance = serializer.save(tenant=user_tenant)
             
             # Registrar en bitácora
             if is_update:

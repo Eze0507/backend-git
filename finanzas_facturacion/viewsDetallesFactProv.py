@@ -4,21 +4,25 @@ from rest_framework.response import Response
 from django.db.models import Sum, F
 from .modelsDetallesFactProv import DetalleFacturaProveedor
 from .serializers.serializersDetallesFactProv import DetalleFacturaProveedorSerializer
-
+from rest_framework.permissions import IsAuthenticated
 
 class DetalleFacturaProveedorViewSet(viewsets.ModelViewSet):
     """
     ViewSet para gestionar los detalles de facturas de proveedor.
     Permite listar, crear, actualizar y eliminar detalles de factura.
     """
-    queryset = DetalleFacturaProveedor.objects.all()
     serializer_class = DetalleFacturaProveedorSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         """
         Filtrado opcional por factura o item
         """
-        queryset = super().get_queryset()
+        user_tenant = self.request.user.profile.tenant
+        
+        queryset = DetalleFacturaProveedor.objects.filter(
+            tenant=user_tenant
+        )
         
         # Filtrar por factura
         factura_id = self.request.query_params.get('factura', None)
@@ -31,6 +35,16 @@ class DetalleFacturaProveedorViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(item_id=item_id)
             
         return queryset.select_related('factura', 'item')
+    
+    def perform_create(self, serializer):
+        """Crear detalle de factura y asignar el TENANT automáticamente"""
+        user_tenant = self.request.user.profile.tenant
+        serializer.save(tenant=user_tenant)
+    
+    def perform_update(self, serializer):
+        """Actualizar detalle de factura y asignar el TENANT automáticamente"""
+        user_tenant = self.request.user.profile.tenant
+        serializer.save(tenant=user_tenant)
 
     @action(detail=False, methods=['get'])
     def por_factura(self, request):
@@ -46,7 +60,7 @@ class DetalleFacturaProveedorViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        detalles = self.queryset.filter(factura_id=factura_id)
+        detalles = self.get_queryset().filter(factura_id=factura_id)
         serializer = self.get_serializer(detalles, many=True)
         
         return Response(serializer.data)
@@ -72,7 +86,7 @@ class DetalleFacturaProveedorViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        detalles = self.queryset.filter(factura_id=factura_id)
+        detalles = self.get_queryset().filter(factura_id=factura_id)
         
         # Calcular totales
         resumen = detalles.aggregate(
@@ -106,8 +120,18 @@ class DetalleFacturaProveedorViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data, many=True)
         
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            user_tenant = self.request.user.profile.tenant
+            detalles_creados = []
+            for detalle_data in serializer.validated_data:
+                detalle = DetalleFacturaProveedor.objects.create(
+                    tenant=user_tenant, 
+                    **detalle_data
+                )
+                detalles_creados.append(detalle)
+            return Response(
+                DetalleFacturaProveedorSerializer(detalles_creados, many=True).data, 
+                status=status.HTTP_201_CREATED
+            )
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

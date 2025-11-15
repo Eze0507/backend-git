@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from django.db.models import Q
 from .modelsFactProv import FacturaProveedor
 from .serializers.serializersFactProv import FacturaProveedorSerializer
+from rest_framework.permissions import IsAuthenticated
 
 
 class FacturaProveedorViewSet(viewsets.ModelViewSet):
@@ -11,14 +12,18 @@ class FacturaProveedorViewSet(viewsets.ModelViewSet):
     ViewSet para gestionar las facturas de proveedor.
     Permite listar, crear, actualizar y eliminar facturas.
     """
-    queryset = FacturaProveedor.objects.all()
     serializer_class = FacturaProveedorSerializer
-
+    permission_classes = [IsAuthenticated]
+    
     def get_queryset(self):
         """
         Filtrado opcional por proveedor, número de factura o fecha
         """
-        queryset = super().get_queryset()
+        
+        user_tenant = self.request.user.profile.tenant
+        queryset = FacturaProveedor.objects.filter(
+            tenant=user_tenant
+        )
         
         # Filtrar por proveedor
         proveedor_id = self.request.query_params.get('proveedor', None)
@@ -39,6 +44,18 @@ class FacturaProveedorViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(fecha_registro__lte=fecha_hasta)
             
         return queryset.select_related('proveedor')
+    
+    def perform_create(self, serializer):
+        """Crear factura de proveedor y asignar el TENANT automáticamente"""
+        user_tenant = self.request.user.profile.tenant
+        instance = serializer.save(tenant=user_tenant)
+        # (Aquí iría tu lógica de bitácora para la creación)
+        
+    def perform_update(self, serializer):
+        """Actualizar factura de proveedor y asignar el TENANT automáticamente"""
+        # (Añadido por seguridad, aunque get_object() ya protege)
+        user_tenant = self.request.user.profile.tenant
+        instance = serializer.save(tenant=user_tenant)
 
     @action(detail=True, methods=['get'])
     def detalles(self, request, pk=None):
@@ -87,7 +104,7 @@ class FacturaProveedorViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        facturas = self.queryset.filter(proveedor_id=proveedor_id)
+        facturas = self.get_queryset().filter(proveedor_id=proveedor_id)
         serializer = self.get_serializer(facturas, many=True)
         
         return Response(serializer.data)
@@ -106,7 +123,7 @@ class FacturaProveedorViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        facturas = self.queryset.filter(
+        facturas = self.get_queryset().filter(
             Q(numero__icontains=query) | 
             Q(observacion__icontains=query)
         )

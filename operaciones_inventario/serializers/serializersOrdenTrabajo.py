@@ -1,6 +1,9 @@
 from rest_framework import serializers
 
 from personal_admin import models
+from ..modelsOrdenTrabajo import OrdenTrabajo, InventarioVehiculo
+from ..modelsVehiculos import Vehiculo
+from clientes_servicios.models import Cliente
 from ..modelsOrdenTrabajo import (OrdenTrabajo, DetalleOrdenTrabajo, TareaOrdenTrabajo, ImagenOrdenTrabajo, 
 PruebaRuta, NotaOrdenTrabajo, AsignacionTecnico, InventarioVehiculo, Inspeccion, PruebaRuta)
 
@@ -144,6 +147,8 @@ class OrdenTrabajoSerializer(serializers.ModelSerializer):
 class OrdenTrabajoCreateSerializer(serializers.ModelSerializer):
     """Serializer para crear órdenes básicas desde el modal"""
     
+    
+    
     class Meta:
         model = OrdenTrabajo
         fields = [
@@ -152,9 +157,25 @@ class OrdenTrabajoCreateSerializer(serializers.ModelSerializer):
             'nivel_combustible', 'observaciones', 'vehiculo', 'cliente'
         ]
     
+    def __init__(self, *args, **kwargs):
+        """
+        Filtra los querysets de 'vehiculo' y 'cliente' 
+        para mostrar solo los que pertenecen al tenant del usuario.
+        """
+        super().__init__(*args, **kwargs)
+        
+        # Asegurarse de que el contexto (y el request) existan
+        if 'request' in self.context:
+            user_tenant = self.context['request'].user.profile.tenant
+            
+            # Filtrar 'vehiculo' y 'cliente' por el tenant
+            self.fields['vehiculo'].queryset = Vehiculo.objects.filter(tenant=user_tenant)
+            self.fields['cliente'].queryset = Cliente.objects.filter(tenant=user_tenant)
+    
     def create(self, validated_data):
         """Crear orden con totales inicializados en 0"""
-        orden = OrdenTrabajo.objects.create(**validated_data)
-        InventarioVehiculo.objects.create(orden_trabajo=orden)
+        user_tenant = self.context['request'].user.profile.tenant
+        orden = OrdenTrabajo.objects.create(tenant=user_tenant, **validated_data)
+        InventarioVehiculo.objects.create(orden_trabajo=orden, tenant=user_tenant)
         orden.recalcular_totales()  # Inicializar totales en 0
         return orden

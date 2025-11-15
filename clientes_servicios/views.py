@@ -16,13 +16,17 @@ class ClienteViewSet(viewsets.ModelViewSet):
     - Listar con filtros y búsqueda
     - Borrado lógico
     """
-    queryset = Cliente.objects.filter(activo=True).order_by('nombre', 'apellido')
     serializer_class = ClienteSerializer
+    def get_queryset(self):
+        user_tenant = self.request.user.profile.tenant
+        return Cliente.objects.filter(activo=True, tenant=user_tenant).order_by('nombre', 'apellido')
 
     def perform_create(self, serializer):
         """Crear cliente y registrar en bitácora"""
+        user_tenant = self.request.user.profile.tenant
+        
         # Ejecutar la creación original
-        instance = serializer.save()
+        instance = serializer.save(tenant=user_tenant)
         
         # Registrar en bitácora
         descripcion = f"Cliente '{instance.nombre} {instance.apellido}' creado con NIT '{instance.nit}' y tipo '{instance.tipo_cliente}'"
@@ -110,7 +114,6 @@ class CitaViewSet(viewsets.ModelViewSet):
     - Administradores: Ven todas las citas
     """
     permission_classes = [IsAuthenticated]
-    queryset = Cita.objects.all()  # Queryset por defecto
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['cliente__nombre', 'cliente__apellido', 'vehiculo__numero_placa', 'descripcion']
     ordering_fields = ['fecha_hora_inicio', 'fecha_creacion', 'estado']
@@ -132,8 +135,11 @@ class CitaViewSet(viewsets.ModelViewSet):
         # (p. ej. DRF DefaultRouter root) self.request puede no estar disponible,
         # y request.user puede ser AnonymousUser sin atributo 'groups'. Evitar
         # AttributeError comprobando existencia y autenticación primero.
-        request = getattr(self, 'request', None)
-        user = getattr(request, 'user', None)
+        user = self.request.user
+        user_tenant = user.profile.tenant
+        queryset = Cita.objects.filter(tenant=user_tenant).select_related(
+            'cliente', 'empleado', 'vehiculo'
+        ).prefetch_related('cliente__usuario')
 
         # Verificar si el usuario está autenticado y es administrador
         is_admin = False
@@ -144,11 +150,6 @@ class CitaViewSet(viewsets.ModelViewSet):
                 # En caso de que user no tenga 'groups' por algún motivo,
                 # no tratar al usuario como admin
                 is_admin = False
-
-        # Construir queryset base
-        queryset = Cita.objects.select_related(
-            'cliente', 'empleado'
-        ).select_related('vehiculo').prefetch_related('cliente__usuario')
 
         # Si NO es administrador y el usuario está autenticado, filtrar por empleado
         if not is_admin:
@@ -200,20 +201,22 @@ class CitaViewSet(viewsets.ModelViewSet):
         user = self.request.user
         
         # Si no se especificó empleado, asignar automáticamente al empleado autenticado
+        user_tenant = user.profile.tenant
+        
         empleado_asignado = serializer.validated_data.get('empleado')
         
         if not empleado_asignado:
             # Buscar el empleado asociado al usuario autenticado
             try:
-                empleado_actual = Empleado.objects.get(usuario=user, estado=True)
+                empleado_actual = Empleado.objects.get(usuario=user, estado=True, tenant=user_tenant)
                 # Asignar el empleado antes de guardar
-                instance = serializer.save(empleado=empleado_actual)
+                instance = serializer.save(empleado=empleado_actual, tenant=user_tenant)
             except Empleado.DoesNotExist:
                 # Si no es empleado, guardar sin asignar empleado (puede ser admin)
-                instance = serializer.save()
+                instance = serializer.save(tenant=user_tenant)
         else:
             # Si se especificó empleado, usar ese
-            instance = serializer.save()
+            instance = serializer.save(tenant=user_tenant)
         
         # Preparar información para bitácora
         is_admin = user.groups.filter(name='administrador').exists()

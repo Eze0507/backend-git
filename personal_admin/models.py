@@ -1,12 +1,17 @@
 from django.db import models
 from django.contrib.auth.models import User
 from operaciones_inventario.modelsArea import Area
+from .models_saas import Tenant
 
 class Cargo(models.Model):
-    nombre = models.CharField(max_length=100, unique=True)
+    nombre = models.CharField(max_length=100)
     descripcion = models.TextField()
     sueldo = models.DecimalField(max_digits=10, decimal_places=2)
-
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='cargos')
+    
+    class Meta:
+        unique_together = ('nombre', 'tenant')
+    
     def __str__(self):
         return self.nombre
     
@@ -18,10 +23,11 @@ class Empleado(models.Model):
     cargo   = models.ForeignKey('personal_admin.Cargo', on_delete=models.CASCADE, related_name='empleados')
     usuario = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='empleado')
     area = models.ForeignKey('operaciones_inventario.Area', on_delete=models.SET_NULL, related_name='empleados',null=True, blank=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='empleados')
 
     nombre   = models.CharField(max_length=100)
     apellido = models.CharField(max_length=100)
-    ci       = models.CharField(max_length=30, unique=True, verbose_name="CI")
+    ci       = models.CharField(max_length=30, verbose_name="CI")
     direccion = models.CharField(max_length=255, blank=True)
     telefono  = models.CharField(max_length=20, blank=True)
     sexo     = models.CharField(max_length=1, choices=Sexo.choices, blank=True)
@@ -37,6 +43,7 @@ class Empleado(models.Model):
             models.Index(fields=["ci"]),
             models.Index(fields=["apellido", "nombre"]),
         ]
+        unique_together = ('ci', 'tenant')
 
     def __str__(self):
         return f"{self.apellido}, {self.nombre} ({self.ci})"
@@ -69,6 +76,7 @@ class Bitacora(models.Model):
     descripcion = models.TextField()
     ip_address = models.GenericIPAddressField(verbose_name="Dirección IP", null=True, blank=True)
     fecha_accion = models.DateTimeField(auto_now_add=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='bitacoras')
     
     class Meta:
         db_table = "bitacora"

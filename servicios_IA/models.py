@@ -2,7 +2,7 @@ from django.db import models
 from django.utils import timezone
 from django.contrib.auth.models import User
 from operaciones_inventario.modelsVehiculos import Vehiculo
-
+from personal_admin.models_saas import Tenant
 class LecturaPlaca(models.Model):
     id = models.AutoField(primary_key=True)
     placa = models.CharField(max_length=20)
@@ -11,6 +11,7 @@ class LecturaPlaca(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
     vehiculo = models.ForeignKey(Vehiculo, on_delete=models.CASCADE, null=True)
     match = models.BooleanField(default=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='lecturas_placa')
 
     class Meta:
         db_table = "lectura_placa"
@@ -45,6 +46,7 @@ class Reporte(models.Model):
     fecha_generacion = models.DateTimeField(auto_now_add=True)
     registros_procesados = models.IntegerField(default=0)
     tiempo_generacion = models.FloatField(default=0.0, help_text="Tiempo en segundos")
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='reportes')
     
     class Meta:
         db_table = "reporte"

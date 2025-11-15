@@ -1,6 +1,7 @@
 from django.db import models
 from operaciones_inventario.modelsOrdenTrabajo import OrdenTrabajo
 from django.contrib.auth.models import User
+from personal_admin.models_saas import Tenant
 
 
 class Pago(models.Model):
@@ -96,6 +97,7 @@ class Pago(models.Model):
         blank=True,
         verbose_name='Usuario que registró'
     )
+    tenant = models.ForeignKey('personal_admin.Tenant', on_delete=models.CASCADE, related_name='pagos')
     
     def __str__(self):
         return f"Pago #{self.id} - Orden #{self.orden_trabajo.id} - {self.estado}"

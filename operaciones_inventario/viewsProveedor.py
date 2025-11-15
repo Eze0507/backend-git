@@ -3,5 +3,12 @@ from operaciones_inventario.modelsProveedor import Proveedor
 from operaciones_inventario.serializers.serializersProveedor import ProveedorSerializer
 
 class ProveedorViewSet(viewsets.ModelViewSet):
-    queryset = Proveedor.objects.all();
     serializer_class = ProveedorSerializer
+    
+    def get_queryset(self):
+        user_tenant = self.request.user.profile.tenant
+        return Proveedor.objects.filter(tenant=user_tenant)
+    
+    def perform_create(self, serializer):
+        user_tenant = self.request.user.profile.tenant
+        isinstance = serializer.save(tenant=user_tenant)

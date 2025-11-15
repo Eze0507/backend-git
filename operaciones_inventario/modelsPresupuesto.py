@@ -4,6 +4,7 @@ from .modelsItem import Item as item
 from .modelsVehiculos import Vehiculo
 from clientes_servicios.models import Cliente
 from django.core.validators import MinValueValidator, MaxValueValidator
+from personal_admin.models_saas import Tenant
 
 class presupuesto(models.Model):
     ESTADO_CHOICES = [
@@ -26,7 +27,8 @@ class presupuesto(models.Model):
     subtotal = models.DecimalField(null=True, blank=True, max_digits=10, decimal_places=2)
     total = models.DecimalField(null=True, blank=True, max_digits=10, decimal_places=2)
     vehiculo = models.ForeignKey(Vehiculo, on_delete=models.SET_NULL, null=True, blank=True, related_name='presupuestos')
-
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='presupuestos')
+    
     class Meta:
         ordering = ['id']
         verbose_name = 'Presupuesto'
@@ -73,7 +75,8 @@ class detallePresupuesto(models.Model):
     descuento_porcentaje = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, validators=[MinValueValidator(0), MaxValueValidator(100)])
     subtotal = models.DecimalField(null=True, blank=True, max_digits=10, decimal_places=2)
     total = models.DecimalField(null=True, blank=True, max_digits=10, decimal_places=2)
-
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='detalles_presupuesto')
+    
     class Meta:
         ordering = ['id']
         verbose_name = 'Detalle de Presupuesto'

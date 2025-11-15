@@ -1,13 +1,16 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from clientes_servicios.models import Cliente
+from personal_admin.models_saas import Tenant
 
 
 class Marca(models.Model):
     """Modelo para las marcas de vehículos"""
-    nombre = models.CharField(max_length=80, unique=True, null=False, blank=False)
+    nombre = models.CharField(max_length=80, null=False, blank=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='marcas_vehiculos')
     
     class Meta:
+        unique_together = ['nombre', 'tenant']
         ordering = ['nombre']
         verbose_name = 'Marca'
         verbose_name_plural = 'Marcas'
@@ -25,12 +28,14 @@ class Modelo(models.Model):
         blank=True,
         related_name='modelos'
     )
-    nombre = models.CharField(max_length=80, unique=True, null=False, blank=False)
+    nombre = models.CharField(max_length=80, null=False, blank=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='modelos_vehiculos')
     
     class Meta:
         ordering = ['marca__nombre', 'nombre']
         verbose_name = 'Modelo'
         verbose_name_plural = 'Modelos'
+        unique_together = ['nombre', 'marca', 'tenant']
     
     def __str__(self):
         if self.marca:
@@ -78,8 +83,7 @@ class Vehiculo(models.Model):
     vin = models.CharField(max_length=40, blank=True, null=True, verbose_name='VIN')
     numero_motor = models.CharField(max_length=40, blank=True, null=True, verbose_name='Número de Motor')
     numero_placa = models.CharField(
-        max_length=20, 
-        unique=True, 
+        max_length=20,  
         null=False, 
         blank=False,
         verbose_name='Número de Placa',
@@ -112,12 +116,13 @@ class Vehiculo(models.Model):
     
     # Campos de auditoría
     fecha_registro = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de Registro')
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='vehiculos')
     
     class Meta:
         ordering = ['-fecha_registro']
         verbose_name = 'Vehículo'
         verbose_name_plural = 'Vehículos'
-        unique_together = ['numero_placa']
+        unique_together = ['numero_placa', 'tenant']
     
     def __str__(self):
         marca_nombre = self.marca.nombre if self.marca else 'Sin marca'

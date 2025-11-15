@@ -27,7 +27,6 @@ class CitaClienteViewSet(viewsets.ModelViewSet):
     - Clientes pueden crear nuevas citas
     """
     permission_classes = [IsAuthenticated]
-    queryset = Cita.objects.all()
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['vehiculo__numero_placa', 'descripcion', 'tipo_cita']
     ordering_fields = ['fecha_hora_inicio', 'fecha_creacion', 'estado']
@@ -42,14 +41,18 @@ class CitaClienteViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Filtrar citas para mostrar solo las del cliente autenticado"""
         user = self.request.user
+        user_tenant = user.profile.tenant
         try:
-            cliente = Cliente.objects.get(usuario=user, activo=True)
+            cliente = Cliente.objects.get(usuario=user, activo=True, tenant=user_tenant)
         except Cliente.DoesNotExist:
             return Cita.objects.none()
 
-        queryset = Cita.objects.select_related(
+        queryset = Cita.objects.filter(
+            tenant=user_tenant
+        ).select_related(
             'cliente', 'empleado', 'vehiculo'
         ).prefetch_related('cliente__usuario')
+        
         queryset = queryset.filter(cliente=cliente)
 
         # Filtros opcionales
@@ -81,8 +84,11 @@ class CitaClienteViewSet(viewsets.ModelViewSet):
     
     def create(self, request, *args, **kwargs):
         user = request.user
+        
+        user_tenant = user.profile.tenant
+        
         try:
-            cliente = Cliente.objects.get(usuario=user, activo=True)
+            cliente = Cliente.objects.get(usuario=user, activo=True, tenant=user_tenant)
         except Cliente.DoesNotExist:
             return Response(
                 {'error': 'No se encontró un perfil de cliente asociado a este usuario.'},
@@ -93,16 +99,19 @@ class CitaClienteViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Crear cita y asignar automáticamente el cliente del usuario autenticado"""
         user = self.request.user
-        cliente = Cliente.objects.get(usuario=user, activo=True)
+        
+        user_tenant = user.profile.tenant
+        
+        cliente = Cliente.objects.get(usuario=user, activo=True, tenant=user_tenant)
 
         vehiculo = serializer.validated_data.get('vehiculo')
-        if vehiculo and vehiculo.cliente != cliente:
+        if vehiculo.cliente != cliente or vehiculo.tenant != user_tenant:
             raise ValidationError({
                 'vehiculo': 'El vehículo seleccionado no pertenece a tu cuenta.'
             })
 
         # Crear confirmada por defecto cuando la crea el cliente
-        instance = serializer.save(cliente=cliente, estado='confirmada')
+        instance = serializer.save(cliente=cliente, estado='confirmada', tenant=user_tenant)
 
         cliente_nombre = f"{instance.cliente.nombre} {instance.cliente.apellido}".strip()
         vehiculo_info = f" - Vehículo: {instance.vehiculo.numero_placa}" if instance.vehiculo else ""
@@ -124,10 +133,12 @@ class CitaClienteViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         """Permitir que el cliente edite para reprogramar (fecha/hora) o cambiar estado."""
         instance = self.get_object()
+        
+        user_tenant = request.user.profile.tenant
 
         # Seguridad: solo propietario
         try:
-            cliente = Cliente.objects.get(usuario=request.user, activo=True)
+            cliente = Cliente.objects.get(usuario=request.user, activo=True, tenant=user_tenant)
         except Cliente.DoesNotExist:
             return Response({'error': 'Perfil de cliente no encontrado.'}, status=status.HTTP_400_BAD_REQUEST)
         if instance.cliente_id != cliente.id:
@@ -170,6 +181,7 @@ class CitaClienteViewSet(viewsets.ModelViewSet):
             if empleado:
                 conflicto = Cita.objects.filter(
                     empleado=empleado,
+                    tenant=user_tenant,
                     estado__in=['pendiente', 'confirmada']
                 ).exclude(id=instance.id).filter(
                     fecha_hora_inicio__lt=fecha_fin,
@@ -194,7 +206,7 @@ class CitaClienteViewSet(viewsets.ModelViewSet):
                 if data['vehiculo'] is None:
                     instance.vehiculo = None
                 else:
-                    v = Vehiculo.objects.get(id=data['vehiculo'])
+                    v = Vehiculo.objects.get(id=data['vehiculo'], tenant=user_tenant)
                     if v.cliente_id != cliente.id:
                         return Response({'vehiculo': 'El vehículo no pertenece a tu cuenta.'}, status=status.HTTP_400_BAD_REQUEST)
                     instance.vehiculo = v
@@ -207,31 +219,39 @@ class CitaClienteViewSet(viewsets.ModelViewSet):
 
         instance.save()
         return Response(CitaClienteSerializer(instance).data, status=status.HTTP_200_OK)
-
+    
+    def _get_cliente_from_request(self, request):
+        """Función helper para obtener el cliente y tenant de forma segura."""
+        user = request.user
+        user_tenant = user.profile.tenant
+        try:
+            cliente = Cliente.objects.get(usuario=user, activo=True, tenant=user_tenant)
+            return cliente
+        except Cliente.DoesNotExist:
+            return None
+    
     @action(detail=True, methods=['post'])
     def confirmar(self, request, pk=None):
-        """Confirmar una cita (usado cuando el empleado la propuso)."""
-        instance = self.get_object()
-        try:
-            cliente = Cliente.objects.get(usuario=request.user, activo=True)
-        except Cliente.DoesNotExist:
+        instance = self.get_object() # Ya filtrado por tenant
+        cliente = self._get_cliente_from_request(request)
+        if not cliente:
             return Response({'error': 'Perfil de cliente no encontrado.'}, status=status.HTTP_400_BAD_REQUEST)
         if instance.cliente_id != cliente.id:
             return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
+        
         instance.estado = 'confirmada'
         instance.save()
         return Response({'detail': 'Cita confirmada.'}, status=status.HTTP_200_OK)
-
+    
     @action(detail=True, methods=['post'])
     def cancelar(self, request, pk=None):
-        """Cancelar una cita."""
-        instance = self.get_object()
-        try:
-            cliente = Cliente.objects.get(usuario=request.user, activo=True)
-        except Cliente.DoesNotExist:
+        instance = self.get_object() # Ya filtrado por tenant
+        cliente = self._get_cliente_from_request(request)
+        if not cliente:
             return Response({'error': 'Perfil de cliente no encontrado.'}, status=status.HTTP_400_BAD_REQUEST)
         if instance.cliente_id != cliente.id:
             return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
+
         instance.estado = 'cancelada'
         instance.save()
         return Response({'detail': 'Cita cancelada.'}, status=status.HTTP_200_OK)
@@ -246,14 +266,11 @@ class CitaClienteViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'], url_path='mi-cliente-id')
     def mi_cliente_id(self, request):
-        """Endpoint para obtener el ID del cliente autenticado"""
-        user = request.user
-        try:
-            cliente = Cliente.objects.get(usuario=user, activo=True)
-            return Response({
-                'cliente_id': cliente.id
-            }, status=status.HTTP_200_OK)
-        except Cliente.DoesNotExist:
+        # NUEVO: Usar el helper
+        cliente = self._get_cliente_from_request(request)
+        if cliente:
+            return Response({'cliente_id': cliente.id}, status=status.HTTP_200_OK)
+        else:
             return Response(
                 {'error': 'No se encontró un perfil de cliente asociado a este usuario.'},
                 status=status.HTTP_404_NOT_FOUND
@@ -270,8 +287,9 @@ class CalendarioEmpleadoView(APIView):
     authentication_classes = [JWTAuthentication]
     
     def get(self, request, empleado_id):
+        user_tenant = request.user.profile.tenant
         try:
-            empleado = Empleado.objects.get(id=empleado_id, estado=True)
+            empleado = Empleado.objects.get(id=empleado_id, estado=True, tenant=user_tenant)
         except Empleado.DoesNotExist:
             return Response(
                 {'error': 'Empleado no encontrado o inactivo.'},
@@ -290,6 +308,7 @@ class CalendarioEmpleadoView(APIView):
                 end_utc = timezone.make_aware(end_naive, dt_timezone.utc)
                 citas_ocupadas = Cita.objects.filter(
                     empleado=empleado,
+                    tenant=user_tenant,
                     estado__in=['pendiente', 'confirmada'],
                 ).filter(
                     fecha_hora_inicio__lt=end_utc,
@@ -299,11 +318,13 @@ class CalendarioEmpleadoView(APIView):
                 # Si el parámetro es inválido, caer al comportamiento por defecto
                 citas_ocupadas = Cita.objects.filter(
                     empleado=empleado,
+                    tenant=user_tenant,
                     estado__in=['pendiente', 'confirmada']
                 ).order_by('fecha_hora_inicio')
         else:
             citas_ocupadas = Cita.objects.filter(
                 empleado=empleado,
+                tenant=user_tenant,
                 estado__in=['pendiente', 'confirmada']
             ).order_by('fecha_hora_inicio')
         

@@ -27,6 +27,7 @@ from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from .serializers.serializers_user import UserSerializer
+from .models_saas import UserProfile
 
 
 # ===== FUNCIÓN HELPER PARA REGISTRAR EN BITÁCORA =====
@@ -50,24 +51,45 @@ def registrar_bitacora(usuario, accion, modulo, descripcion, request=None):
         else:
             ip_address = request.META.get('REMOTE_ADDR')
     
+    user_tenant = None
+    
+    if usuario and usuario.is_authenticated and hasattr(usuario, 'profile'):
+        user_tenant = usuario.profile.tenant
+    
     Bitacora.objects.create(
         usuario=usuario,
         accion=accion,
         modulo=modulo,
         descripcion=descripcion,
-        ip_address=ip_address
+        ip_address=ip_address,
+        tenant=user_tenant
     )
 
 
 # ---- ViewSets de tus compañeros ----
 class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all()
+
     serializer_class = UserSerializer
+    
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        user_tenant = self.request.user.profile.tenant
+        return User.objects.filter(
+            profile__tenant=user_tenant
+        ).order_by('username')
 
     def perform_create(self, serializer):
         """Crear usuario y registrar en bitácora"""
         # Ejecutar la creación original
         instance = serializer.save()
+        
+        try:
+            user_tenant = self.request.user.profile.tenant
+            UserProfile.objects.create(usuario=instance, tenant=user_tenant)
+
+        except Exception as e:
+            print(f"Error asignando tenant al profile del nuevo usuario: {e}")
         
         # Obtener información del rol
         rol_info = instance.groups.first()
@@ -219,9 +241,16 @@ class LogoutView(APIView):
 
 
 class CargoViewSet(viewsets.ModelViewSet):
-    queryset = Cargo.objects.all()
     serializer_class = CargoSerializer
-
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        user_tenant = self.request.user.profile.tenant
+        return Cargo.objects.filter(tenant=user_tenant)
+    
+    def perform_create(self, serializer):
+        user_tenant = self.request.user.profile.tenant
+        instance = serializer.save(tenant=user_tenant)
 
 # ---- ViewSets para Roles y Permisos ----
 class RoleViewSet(viewsets.ModelViewSet):
@@ -407,12 +436,18 @@ class IsAuthenticatedOrReadOnly(permissions.BasePermission):
         return request.user and request.user.is_authenticated
 
 class EmpleadoViewSet(viewsets.ModelViewSet):
-    queryset = Empleado.objects.select_related("cargo", "usuario").all()
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]  
     search_fields = ["nombre", "apellido", "ci", "telefono"]
     ordering_fields = ["apellido", "nombre", "ci", "fecha_registro", "sueldo"]
     ordering = ["apellido", "nombre"]
-
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        user_tenant = self.request.user.profile.tenant
+        return Empleado.objects.filter(
+            tenant=user_tenant
+        ).select_related('cargo', 'usuario')
+    
     def get_serializer_class(self):
         if self.action in ("create", "update", "partial_update"):
             return EmpleadoWriteSerializer
@@ -420,8 +455,9 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         """Crear empleado y registrar en bitácora"""
+        user_tenant = self.request.user.profile.tenant
         # Ejecutar la creación original
-        instance = serializer.save()
+        instance = serializer.save(tenant=user_tenant)
         
         # Registrar en bitácora
         cargo_nombre = instance.cargo.nombre if instance.cargo else 'Sin cargo'
@@ -598,12 +634,18 @@ def registrar_bitacora(usuario, accion, modulo, descripcion, request=None, ip_ad
         if not ip_address and request:
             ip_address = get_client_ip(request)
         
+        user_tenant = None
+        
+        if usuario and usuario.is_authenticated and hasattr(usuario, 'profile'):
+            user_tenant = usuario.profile.tenant
+        
         Bitacora.objects.create(
             usuario=usuario,
             accion=accion,
             modulo=modulo,
             descripcion=descripcion,
-            ip_address=ip_address
+            ip_address=ip_address,
+            tenant=user_tenant
         )
         return True
     except Exception as e:
@@ -617,16 +659,22 @@ class BitacoraViewSet(viewsets.ReadOnlyModelViewSet):
     ViewSet de solo lectura para consultar registros de bitácora.
     Permite filtrar por usuario, módulo, acción y fecha.
     """
-    queryset = Bitacora.objects.select_related('usuario').all()
     serializer_class = BitacoraSerializer
+    permission_classes = [IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['descripcion', 'usuario__username', 'usuario__email', 'ip_address']
     ordering_fields = ['fecha_accion', 'usuario__username', 'modulo', 'accion']
     ordering = ['-fecha_accion']  # Más recientes primero
     
+    
     def get_queryset(self):
         """Filtros personalizados para la bitácora"""
-        queryset = super().get_queryset()
+        
+        user_tenant = self.request.user.profile.tenant
+        
+        queryset = Bitacora.objects.filter(
+            tenant=user_tenant
+        ).select_related('usuario')
         
         # Filtro por módulo
         modulo = self.request.query_params.get('modulo', None)

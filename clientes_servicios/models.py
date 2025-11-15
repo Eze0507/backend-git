@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from personal_admin.models_saas import Tenant
 
 class Cliente(models.Model):
     TIPO_CHOICES = (
@@ -9,7 +10,7 @@ class Cliente(models.Model):
 
     nombre = models.CharField(max_length=100)
     apellido = models.CharField(max_length=100, blank=True)
-    nit = models.CharField(max_length=20, unique=True, db_index=True)
+    nit = models.CharField(max_length=20, db_index=True)
     telefono = models.CharField(max_length=20, blank=True)
     direccion = models.CharField(max_length=200, blank=True)
     tipo_cliente = models.CharField(max_length=10, choices=TIPO_CHOICES, default='NATURAL')
@@ -26,11 +27,13 @@ class Cliente(models.Model):
         blank=True,
         related_name='cliente'
     )
-
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='clientes')
+    
     class Meta:
         ordering = ['-fecha_registro']
         verbose_name = 'Cliente'
         verbose_name_plural = 'Clientes'
+        unique_together = ['nit', 'tenant']
 
     def __str__(self):
         full = f"{self.nombre} {self.apellido}".strip()
@@ -110,6 +113,7 @@ class Cita(models.Model):
     
     fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de Creación')
     fecha_actualizacion = models.DateTimeField(auto_now=True, verbose_name='Fecha de Actualización')
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='citas')
     
     class Meta:
         ordering = ['fecha_hora_inicio']

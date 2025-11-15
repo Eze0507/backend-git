@@ -1,6 +1,7 @@
 from django.db import models
 from django.db.models import Sum
 from operaciones_inventario.modelsProveedor import Proveedor
+from personal_admin.models_saas import Tenant
 
 class FacturaProveedor(models.Model):
     id = models.AutoField(primary_key=True)
@@ -14,6 +15,7 @@ class FacturaProveedor(models.Model):
     impuesto = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Monto calculado del IVA")
     total = models.DecimalField(max_digits=10, decimal_places=2)
     proveedor = models.ForeignKey(Proveedor, on_delete=models.CASCADE, related_name='facturas_proveedor')
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='facturas_proveedor')
     
     class Meta:
         db_table = 'factura_proveedor'

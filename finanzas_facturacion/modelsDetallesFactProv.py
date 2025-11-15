@@ -11,7 +11,8 @@ class DetalleFacturaProveedor(models.Model):
     descuento = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)
     total = models.DecimalField(max_digits=10, decimal_places=2)
-
+    tenant = models.ForeignKey('personal_admin.Tenant', on_delete=models.CASCADE, related_name='detalles_factura_proveedor')
+    
     class Meta:
         db_table = 'detalle_factura_proveedor'
         verbose_name = 'Detalle de Factura de Proveedor'

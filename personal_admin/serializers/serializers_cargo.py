@@ -4,7 +4,7 @@ from ..models import Cargo
 class CargoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cargo
-        fields = '__all__'
+        fields = ['id', 'nombre', 'descripcion', 'sueldo']
 
 def validate_nombre(self, value):
         if not value.strip():

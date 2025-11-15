@@ -5,6 +5,7 @@ from personal_admin.models import Empleado
 from decimal import Decimal
 from .modelsItem import Item
 from django.core.validators import MinValueValidator, MaxValueValidator
+from personal_admin.models_saas import Tenant
 
 class OrdenTrabajo(models.Model):
     CHOICE_ESTADO = [
@@ -40,6 +41,7 @@ class OrdenTrabajo(models.Model):
     vehiculo = models.ForeignKey(Vehiculo, on_delete=models.CASCADE, related_name='ordenes')
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name='ordenes')
     pago = models.BooleanField(default=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='ordenes_trabajo')
     
     def recalcular_totales(self):
         detalles = self.detalles.all()
@@ -74,6 +76,7 @@ class DetalleOrdenTrabajo(models.Model):
     total = models.DecimalField(max_digits=10, decimal_places=2)
     item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='detalles_orden', null=True, blank=True)
     item_personalizado = models.CharField(max_length=200, null=True, blank=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='detalles_orden_trabajo')
     
     def save(self, *args, **kwargs):
         from decimal import Decimal, ROUND_HALF_UP
@@ -146,6 +149,7 @@ class InventarioVehiculo (models.Model):
     herramientas = models.BooleanField(default=False)
     tapas_ruedas = models.BooleanField(default=False)
     triangulos = models.BooleanField(default=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='inventarios_vehiculo')
     
     def __str__(self):
         return f"Inventario {self.id} de Orden {self.orden_trabajo.id}"
@@ -161,6 +165,7 @@ class TareaOrdenTrabajo(models.Model):
     orden_trabajo = models.ForeignKey(OrdenTrabajo, on_delete=models.CASCADE, related_name='tareas')
     descripcion = models.CharField(max_length=200)
     completada = models.BooleanField(default=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='tareas_orden_trabajo')
     
     def __str__(self):
         return f"Tarea {self.id} de Orden {self.orden_trabajo.id}"
@@ -176,6 +181,7 @@ class ImagenOrdenTrabajo(models.Model):
     orden_trabajo = models.ForeignKey(OrdenTrabajo, on_delete=models.CASCADE, related_name='imagenes')
     imagen_url = models.URLField(blank=True, null=True)
     descripcion = models.CharField(max_length=200, blank=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='imagenes_orden_trabajo')
     
     def __str__(self):
         return f"Imagen {self.id} de Orden {self.orden_trabajo.id}"
@@ -212,6 +218,7 @@ class PruebaRuta(models.Model):
     direccion = models.CharField(choices=CHOICE_ESTADO, max_length=20)
     observaciones = models.TextField()
     tecnico = models.ForeignKey(Empleado, on_delete=models.SET_NULL, null=True, related_name='pruebas_ruta')
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='pruebas_ruta')
     
     def __str__(self):
         return f"Prueba de Ruta {self.id} de Orden {self.orden_trabajo.id}"
@@ -227,6 +234,7 @@ class NotaOrdenTrabajo(models.Model):
     orden_trabajo = models.ForeignKey(OrdenTrabajo, on_delete=models.CASCADE, related_name='notas')
     fecha_nota = models.DateTimeField(auto_now_add=True)
     contenido = models.TextField()
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='notas_orden_trabajo')
     
     def __str__(self):
         return f"Nota {self.id} de Orden {self.orden_trabajo.id}"
@@ -266,6 +274,7 @@ class Inspeccion(models.Model):
     estado_bateria = models.CharField(max_length=20, choices=OPCIONES_NIVEL, blank=True, null=True)
     estado_luces = models.CharField(max_length=20, choices=OPCIONES_ESTADO, blank=True, null=True)
     observaciones_generales = models.TextField(blank=True, null=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='inspecciones')
     
     def __str__(self):
         return f"Inspección {self.tipo_inspeccion} - Orden {self.orden_trabajo.id}"
@@ -296,6 +305,7 @@ class DetalleInspeccion(models.Model):
     Estado_neumaticos = models.CharField(max_length=20, choices=OPCIONES_ESTADO, blank=True, null=True)
     estado_bateria = models.CharField(max_length=20, choices=OPCIONES_NIVEL, blank=True, null=True)
     estado_luces = models.CharField(max_length=20, choices=OPCIONES_ESTADO, blank=True, null=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='detalles_inspeccion')
     
     def __str__(self):
         return f"Detalle de Inspección {self.id} - Inspección {self.inspeccion.id}"
@@ -310,6 +320,7 @@ class AsignacionTecnico(models.Model):
     orden_trabajo = models.ForeignKey(OrdenTrabajo, on_delete=models.CASCADE, related_name='asignaciones_tecnicos')
     tecnico = models.ForeignKey(Empleado, on_delete=models.SET_NULL, null=True, related_name='asignaciones_tecnicos')
     fecha_asignacion = models.DateTimeField(auto_now_add=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='asignaciones_tecnicos')
     
     def __str__(self):
         return f"Técnico {self.tecnico} asignado a Orden {self.orden_trabajo.id}"

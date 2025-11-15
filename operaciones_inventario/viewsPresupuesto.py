@@ -30,12 +30,12 @@ class DetallePresupuestoViewSet(viewsets.ModelViewSet):
     ViewSet para CRUD de Detalles de Presupuesto.
     Permite crear, leer, actualizar y eliminar detalles de presupuesto de forma independiente.
     """
-    queryset = detallePresupuesto.objects.all()
     serializer_class = DetallePresupuestoSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        user_tennat = self.request.user.profile.tenant
+        queryset = detallePresupuesto.objects.filter(presupuesto__tenant=user_tennat)
         presupuesto_id = self.request.query_params.get('presupuesto_id', None)
         if presupuesto_id:
             queryset = queryset.filter(presupuesto_id=presupuesto_id)
@@ -50,7 +50,8 @@ class DetallePresupuestoViewSet(viewsets.ModelViewSet):
         """Crear un nuevo detalle de presupuesto"""
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            detalle = serializer.save()
+            user_tenant = self.request.user.profile.tenant
+            detalle = serializer.save(tenant=user_tenant)
             # Recalcular totales del presupuesto padre
             if detalle.presupuesto:
                 detalle.presupuesto.recalcular_totales()
@@ -63,7 +64,8 @@ class DetallePresupuestoViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         if serializer.is_valid():
-            detalle = serializer.save()
+            user_tenant = self.request.user.profile.tenant
+            detalle = serializer.save(tenant=user_tenant)
             # Recalcular totales del presupuesto padre
             if detalle.presupuesto:
                 detalle.presupuesto.recalcular_totales()
@@ -86,15 +88,17 @@ class DetallePresupuestoViewSet(viewsets.ModelViewSet):
         detalles_data = request.data if isinstance(request.data, list) else [request.data]
         serializer = DetallePresupuestoSerializer(data=detalles_data, many=True)
         if serializer.is_valid():
-            detalles = serializer.save()
-            # Recalcular totales para todos los presupuestos afectados
+            user_tenant = self.request.user.profile.tenant
+            detalles_creados = []
             presupuestos_afectados = set()
-            for detalle in detalles:
+            for detalle_data in serializer:
+                detalle = detallePresupuesto.objects.create(tenant=user_tenant, **detalle_data)
+                detalles_creados.append(detalle)
                 if detalle.presupuesto:
                     presupuestos_afectados.add(detalle.presupuesto)
             for presup in presupuestos_afectados:
                 presup.recalcular_totales()
-            return Response(DetallePresupuestoSerializer(detalles, many=True).data, status=status.HTTP_201_CREATED)
+            return Response(DetallePresupuestoSerializer(detalles_creados, many=True).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -102,12 +106,14 @@ class PresupuestoViewSet(viewsets.ModelViewSet):
     """
     ViewSet para CRUD de Presupuestos.
     """
-    queryset = presupuesto.objects.all().prefetch_related('detalles')
+
     serializer_class = PresupuestoSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        user_tennat = self.request.user.profile.tenant
+        queryset = presupuesto.objects.filter(tenant=user_tennat).prefetch_related('detalles')
+        
         vehiculo_id = self.request.query_params.get('vehiculo_id', None)
         if vehiculo_id:
             queryset = queryset.filter(vehiculo_id=vehiculo_id)
