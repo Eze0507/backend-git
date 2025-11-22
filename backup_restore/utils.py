@@ -4,6 +4,7 @@ Permite exportar e importar todos los datos de un tenant específico.
 """
 import json
 from datetime import datetime
+from decimal import Decimal
 from django.db import transaction, IntegrityError
 from django.core.exceptions import ValidationError
 from django.db.models import Q
@@ -812,6 +813,12 @@ def import_tenant_data(backup_data, target_tenant, replace=False):
                 if old_area_id and old_area_id in id_mapping['areas']:
                     item_data['area_id'] = id_mapping['areas'][old_area_id]
                 
+                # Convertir campos Decimal de string a Decimal
+                for field in ['precio', 'costo']:
+                    if field in item_data and item_data[field] is not None:
+                        if isinstance(item_data[field], str):
+                            item_data[field] = Decimal(item_data[field])
+                
                 item, created = Item.objects.get_or_create(
                     codigo=item_data['codigo'],
                     tenant=target_tenant,
@@ -855,6 +862,12 @@ def import_tenant_data(backup_data, target_tenant, replace=False):
                 old_id = cargo_data['id']
                 cargo_data.pop('id')
                 cargo_data.pop('tenant_id')
+                
+                # Convertir campo sueldo de string a Decimal
+                if 'sueldo' in cargo_data and cargo_data['sueldo'] is not None:
+                    if isinstance(cargo_data['sueldo'], str):
+                        cargo_data['sueldo'] = Decimal(cargo_data['sueldo'])
+                
                 cargo, created = Cargo.objects.get_or_create(
                     nombre=cargo_data['nombre'],
                     tenant=target_tenant,
@@ -922,6 +935,11 @@ def import_tenant_data(backup_data, target_tenant, replace=False):
                 if old_usuario_id and old_usuario_id in id_mapping['users']:
                     empleado_data['usuario_id'] = id_mapping['users'][old_usuario_id]
                 
+                # Convertir campo sueldo de string a Decimal
+                if 'sueldo' in empleado_data and empleado_data['sueldo'] is not None:
+                    if isinstance(empleado_data['sueldo'], str):
+                        empleado_data['sueldo'] = Decimal(empleado_data['sueldo'])
+                
                 empleado, created = Empleado.objects.get_or_create(
                     ci=empleado_data['ci'],
                     tenant=target_tenant,
@@ -955,6 +973,12 @@ def import_tenant_data(backup_data, target_tenant, replace=False):
                 if presup_data.get('total_descuentos') is None or presup_data.get('total_descuentos') == 'None':
                     presup_data['total_descuentos'] = '0.00'
                 
+                # Convertir campos string a Decimal
+                for field in ['impuestos', 'total_descuentos', 'subtotal', 'total']:
+                    if field in presup_data and presup_data[field] is not None:
+                        if isinstance(presup_data[field], str):
+                            presup_data[field] = Decimal(presup_data[field])
+                
                 # Eliminar campos que sean None para que usen sus defaults del modelo
                 if presup_data.get('subtotal') is None or presup_data.get('subtotal') == 'None':
                     presup_data.pop('subtotal', None)
@@ -987,6 +1011,12 @@ def import_tenant_data(backup_data, target_tenant, replace=False):
                         detalle_data['descuento_porcentaje'] = '0.00'
                     if detalle_data.get('cantidad') is None:
                         detalle_data['cantidad'] = 0
+                    
+                    # Convertir campos string a Decimal
+                    for field in ['precio_unitario', 'descuento_porcentaje']:
+                        if field in detalle_data and detalle_data[field] is not None:
+                            if isinstance(detalle_data[field], str):
+                                detalle_data[field] = Decimal(detalle_data[field])
                     
                     # Eliminar campos calculados que pueden ser None
                     detalle_data.pop('subtotal', None)
@@ -1024,6 +1054,12 @@ def import_tenant_data(backup_data, target_tenant, replace=False):
                 if orden_data.get('kilometraje') is None or orden_data.get('kilometraje') == 'None':
                     orden_data['kilometraje'] = 0
                 
+                # Convertir campos string a Decimal
+                for field in ['descuento', 'impuesto', 'subtotal', 'total']:
+                    if field in orden_data and orden_data[field] is not None:
+                        if isinstance(orden_data[field], str):
+                            orden_data[field] = Decimal(orden_data[field])
+                
                 orden = OrdenTrabajo.objects.create(tenant=target_tenant, **orden_data)
                 id_mapping['ordenes_trabajo'][old_id] = orden.id
                 summary['ordenes_trabajo'] += 1
@@ -1057,6 +1093,12 @@ def import_tenant_data(backup_data, target_tenant, replace=False):
                         detalle_data['precio_unitario'] = '0.00'
                     if detalle_data.get('cantidad') is None or detalle_data.get('cantidad') == 'None':
                         detalle_data['cantidad'] = 0
+                    
+                    # Convertir campos string a Decimal
+                    for field in ['descuento_porcentaje', 'descuento', 'subtotal', 'total', 'precio_unitario']:
+                        if field in detalle_data and detalle_data[field] is not None:
+                            if isinstance(detalle_data[field], str):
+                                detalle_data[field] = Decimal(detalle_data[field])
                     
                     DetalleOrdenTrabajo.objects.create(tenant=target_tenant, **detalle_data)
                     summary['detalles_ordenes'] += 1
@@ -1182,6 +1224,12 @@ def import_tenant_data(backup_data, target_tenant, replace=False):
                 
                 if old_orden_id in id_mapping['ordenes_trabajo']:
                     pago_data['orden_trabajo_id'] = id_mapping['ordenes_trabajo'][old_orden_id]
+                    
+                    # Convertir campo monto de string a Decimal
+                    if 'monto' in pago_data and pago_data['monto'] is not None:
+                        if isinstance(pago_data['monto'], str):
+                            pago_data['monto'] = Decimal(pago_data['monto'])
+                    
                     Pago.objects.create(tenant=target_tenant, **pago_data)
                     summary['pagos'] += 1
             
@@ -1194,6 +1242,13 @@ def import_tenant_data(backup_data, target_tenant, replace=False):
                 
                 if old_proveedor_id and old_proveedor_id in id_mapping['proveedores']:
                     factura_data['proveedor_id'] = id_mapping['proveedores'][old_proveedor_id]
+                    
+                    # Convertir campos Decimal de string a Decimal
+                    for field in ['descuento_porcentaje', 'impuesto_porcentaje', 'subtotal', 'descuento', 'impuesto', 'total']:
+                        if field in factura_data and factura_data[field] is not None:
+                            if isinstance(factura_data[field], str):
+                                factura_data[field] = Decimal(factura_data[field])
+                    
                     factura = FacturaProveedor.objects.create(tenant=target_tenant, **factura_data)
                     id_mapping['facturas_proveedor'] = id_mapping.get('facturas_proveedor', {})
                     id_mapping['facturas_proveedor'][old_id] = factura.id
@@ -1210,6 +1265,42 @@ def import_tenant_data(backup_data, target_tenant, replace=False):
                 if old_factura_id in facturas_mapping and old_item_id in id_mapping['items']:
                     detalle_data['factura_id'] = facturas_mapping[old_factura_id]
                     detalle_data['item_id'] = id_mapping['items'][old_item_id]
+                    
+                    # Mapear nombres de campos del backup a nombres del modelo
+                    # El backup usa 'precio_unitario' pero el modelo usa 'precio'
+                    if 'precio_unitario' in detalle_data:
+                        detalle_data['precio'] = detalle_data.pop('precio_unitario')
+                    # El backup usa 'descuento_porcentaje' pero el modelo usa 'descuento'
+                    if 'descuento_porcentaje' in detalle_data:
+                        detalle_data['descuento'] = detalle_data.pop('descuento_porcentaje')
+                    
+                    # Convertir campos Decimal de string a Decimal
+                    for field in ['precio', 'descuento', 'subtotal', 'total']:
+                        if field in detalle_data and detalle_data[field] is not None:
+                            if isinstance(detalle_data[field], str):
+                                detalle_data[field] = Decimal(detalle_data[field])
+                    
+                    # Asegurar valores por defecto
+                    if detalle_data.get('descuento') is None:
+                        detalle_data['descuento'] = Decimal('0.00')
+                    if detalle_data.get('cantidad') is None:
+                        detalle_data['cantidad'] = 0
+                    if detalle_data.get('precio') is None:
+                        detalle_data['precio'] = Decimal('0.00')
+                    
+                    # Calcular subtotal y total si no existen o son None
+                    cantidad = detalle_data.get('cantidad', 0)
+                    precio = detalle_data.get('precio', Decimal('0.00'))
+                    descuento = detalle_data.get('descuento', Decimal('0.00'))
+                    
+                    # Calcular subtotal = cantidad * precio
+                    subtotal = Decimal(str(cantidad)) * precio
+                    detalle_data['subtotal'] = subtotal
+                    
+                    # Calcular total = subtotal - descuento
+                    total = subtotal - descuento
+                    detalle_data['total'] = total
+                    
                     DetalleFacturaProveedor.objects.create(tenant=target_tenant, **detalle_data)
                     summary['detalles_facturas_proveedor'] += 1
             
