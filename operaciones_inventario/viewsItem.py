@@ -14,7 +14,14 @@ class ItemViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user_tenant = self.request.user.profile.tenant
-        return Item.objects.filter(tenant=user_tenant)
+        queryset = Item.objects.filter(tenant=user_tenant)
+        
+        # Filtrar por tipo si se proporciona el parámetro
+        exclude_taller = self.request.query_params.get('exclude_taller', None)
+        if exclude_taller and exclude_taller.lower() in ['true', '1', 'yes']:
+            queryset = queryset.exclude(tipo='Item de taller')
+        
+        return queryset
 
     def create(self, request, *args, **kwargs):
         return self.handle_image_upload(request, is_update=False)

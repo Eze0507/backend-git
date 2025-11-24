@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 from .modelsVehiculos import Vehiculo, Marca, Modelo
 from personal_admin.views import registrar_bitacora
@@ -27,6 +28,7 @@ class VehiculoViewSet(viewsets.ModelViewSet):
     - DELETE /api/vehiculos/{id}/ - Eliminar un vehículo
     """
     
+    permission_classes = [IsAuthenticated]
     
     def get_serializer_class(self):
         """Retorna el serializer apropiado según la acción"""
@@ -206,4 +208,35 @@ class VehiculoViewSet(viewsets.ModelViewSet):
         modelos = modelos.order_by('marca__nombre', 'nombre')
         serializer = ModeloSerializer(modelos, many=True)
         return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], url_path='mis-vehiculos')
+    def mis_vehiculos(self, request):
+        """
+        Endpoint para que los clientes obtengan solo sus vehículos.
+        """
+        try:
+            # Verificar que el usuario tenga un perfil de cliente asociado
+            if not hasattr(request.user, 'cliente'):
+                return Response(
+                    {"error": "El usuario no tiene un perfil de cliente asociado."}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            user_tenant = request.user.profile.tenant
+            cliente = request.user.cliente
+            
+            # Filtrar vehículos del cliente autenticado
+            vehiculos = Vehiculo.objects.filter(
+                cliente=cliente,
+                tenant=user_tenant
+            ).select_related('marca', 'modelo').order_by('-fecha_registro')
+            
+            serializer = VehiculoListSerializer(vehiculos, many=True)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            return Response(
+                {"error": str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
