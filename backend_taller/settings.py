@@ -31,7 +31,7 @@ if RAILWAY_STATIC_URL:
 
 # Para desarrollo local con tu IP
 if DEBUG:
-    ALLOWED_HOSTS.append("192.168.100.6")
+    ALLOWED_HOSTS.append("192.168.0.17")
 
 # Application definition
 
@@ -165,6 +165,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://192.168.0.3:3000",
     "http://192.168.0.3:8000",
     "http://192.168.100.6:8000",
+     # Permitir acceso desde el móvil o Flutter (misma Wi-Fi)
+    'http://192.168.0.17:8000',
 ]
 if not DEBUG:
     CSRF_COOKIE_SECURE = True
@@ -192,6 +194,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://192.168.0.3:3000",
     "http://192.168.0.3:8000",
     "http://192.168.100.6:8000",
+    'http://192.168.0.17:8000',  # <-- añade esta línea
 ]
 
 # Agregar dominio de Railway a CSRF trusted origins
