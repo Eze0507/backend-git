@@ -9,7 +9,7 @@ from .views import (
 )
 from .viewsFactProv import FacturaProveedorViewSet
 from .viewsDetallesFactProv import DetalleFacturaProveedorViewSet
-from .views_export import ExportarPagoPDFView, ExportarPagoExcelView
+from .views_export import exportar_pago_pdf, exportar_pago_excel
 
 router = DefaultRouter()
 router.register(r'pagos', PagoViewSet, basename='pago')
@@ -25,8 +25,8 @@ urlpatterns = [
     path('pagos/confirm-payment/', VerifyPaymentIntentOrden.as_view(), name='confirm-payment'),  # Alias
     
     # Export endpoints
-    path('pagos/<int:pk>/export/pdf/', ExportarPagoPDFView.as_view(), name='exportar-pago-pdf'),
-    path('pagos/<int:pk>/export/excel/', ExportarPagoExcelView.as_view(), name='exportar-pago-excel'),
+    path('pagos/<int:pk>/export/pdf/', exportar_pago_pdf, name='exportar-pago-pdf'),
+    path('pagos/<int:pk>/export/excel/', exportar_pago_excel, name='exportar-pago-excel'),
     
     # Router de pagos (CRUD básico)
     path('', include(router.urls)),

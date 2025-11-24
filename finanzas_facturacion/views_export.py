@@ -1,9 +1,8 @@
 # finanzas_facturacion/views_export.py
 from django.http import HttpResponse
-from rest_framework.views import APIView
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework import status
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.shortcuts import get_object_or_404
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
@@ -20,14 +19,15 @@ from .models import Pago
 logger = logging.getLogger(__name__)
 
 
-class ExportarPagoPDFView(APIView):
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def exportar_pago_pdf(request, pk):
     """
     Exporta el detalle de un pago en formato PDF
     GET /api/finanzas-facturacion/pagos/{id}/export/pdf/
     """
-    permission_classes = [IsAuthenticated]
-    
-    def get(self, request, pk):
+    try:
         user = request.user
         user_tenant = user.profile.tenant
         
@@ -61,7 +61,7 @@ class ExportarPagoPDFView(APIView):
         data = [
             ['Campo', 'Valor'],
             ['ID', str(pago.id)],
-            ['Orden', f"#{pago.orden_trabajo.numero_orden}" if pago.orden_trabajo else 'N/A'],
+            ['Orden', f"#{pago.orden_trabajo.id}" if pago.orden_trabajo else 'N/A'],
             ['Cliente', pago.orden_trabajo.cliente.nombre if pago.orden_trabajo and pago.orden_trabajo.cliente else 'N/A'],
             ['Monto', f"Bs. {pago.monto:.2f}"],
             ['Método de Pago', pago.metodo_pago],
@@ -104,16 +104,21 @@ class ExportarPagoPDFView(APIView):
         
         logger.info(f"📄 PDF generado para pago #{pago.id}")
         return response
+        
+    except Exception as e:
+        logger.error(f"❌ Error generando PDF: {e}")
+        return HttpResponse(f"Error: {str(e)}", status=500)
 
 
-class ExportarPagoExcelView(APIView):
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def exportar_pago_excel(request, pk):
     """
     Exporta el detalle de un pago en formato Excel
     GET /api/finanzas-facturacion/pagos/{id}/export/excel/
     """
-    permission_classes = [IsAuthenticated]
-    
-    def get(self, request, pk):
+    try:
         user = request.user
         user_tenant = user.profile.tenant
         
@@ -143,7 +148,7 @@ class ExportarPagoExcelView(APIView):
         # Datos
         data = [
             ['ID', str(pago.id)],
-            ['Orden', f"#{pago.orden_trabajo.numero_orden}" if pago.orden_trabajo else 'N/A'],
+            ['Orden', f"#{pago.orden_trabajo.id}" if pago.orden_trabajo else 'N/A'],
             ['Cliente', pago.orden_trabajo.cliente.nombre if pago.orden_trabajo and pago.orden_trabajo.cliente else 'N/A'],
             ['Monto', f"Bs. {pago.monto:.2f}"],
             ['Método de Pago', pago.metodo_pago],
@@ -176,3 +181,8 @@ class ExportarPagoExcelView(APIView):
         
         logger.info(f"📊 Excel generado para pago #{pago.id}")
         return response
+        
+    except Exception as e:
+        logger.error(f"❌ Error generando Excel: {e}")
+        return HttpResponse(f"Error: {str(e)}", status=500)
+
