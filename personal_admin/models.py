@@ -91,3 +91,4 @@ class Bitacora(models.Model):
     def __str__(self):
         ip_info = f" desde {self.ip_address}" if self.ip_address else ""
         return f"{self.usuario.username} - {self.accion} en {self.modulo}{ip_info} ({self.fecha_accion})"
+    

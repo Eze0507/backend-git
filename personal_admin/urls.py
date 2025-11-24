@@ -24,6 +24,7 @@ from .views import (
     TenantProfileView,
     ClienteRegistrationView
 )
+from .views_nomina import NominaViewSet, DetalleNominaViewSet
 
 app_name = 'personal_admin'  # ← añadido para evitar conflictos de nombres
 
@@ -40,6 +41,10 @@ router.register(r'permissions', PermissionViewSet, basename='permission')
 
 # Ruta para Bitácora
 router.register(r'bitacora', BitacoraViewSet, basename='bitacora')
+
+# Rutas para Nómina
+router.register(r'nominas', NominaViewSet, basename='nomina')
+router.register(r'detalle-nomina', DetalleNominaViewSet, basename='detalle-nomina')
 
 
 urlpatterns = [
