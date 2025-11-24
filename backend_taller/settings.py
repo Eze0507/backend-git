@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'finanzas_facturacion',
     'operaciones_inventario',
     'servicios_IA',
+    'backup_restore',
     'django_filters', 
 
     # Paquetes externos
@@ -220,3 +221,5 @@ PLATE_REGIONS = config('PLATE_REGIONS', default='bo')
 STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
 STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
+# ===========================
+
