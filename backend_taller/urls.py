@@ -26,6 +26,7 @@ urlpatterns = [
     path('api/', include('operaciones_inventario.urls')),
     path('api/ia/', include('servicios_IA.urls')),
     path('api/', include('finanzas_facturacion.urls')),  # Nueva ruta para pagos
+    path('api/', include('backup_restore.urls')),  # Rutas de Backup y Restore
     path('', admin.site.urls),
 ]
 

@@ -31,7 +31,7 @@ if RAILWAY_STATIC_URL:
 
 # Para desarrollo local con tu IP
 if DEBUG:
-    ALLOWED_HOSTS.append("192.168.100.6")
+    ALLOWED_HOSTS.append("192.168.0.17")
 
 # Application definition
 
@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'finanzas_facturacion',
     'operaciones_inventario',
     'servicios_IA',
+    'backup_restore',
     'django_filters', 
 
     # Paquetes externos
@@ -165,6 +166,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://192.168.0.3:3000",
     "http://192.168.0.3:8000",
     "http://192.168.100.6:8000",
+     # Permitir acceso desde el móvil o Flutter (misma Wi-Fi)
+    'http://192.168.0.17:8000',
 ]
 if not DEBUG:
     CSRF_COOKIE_SECURE = True
@@ -192,6 +195,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://192.168.0.3:3000",
     "http://192.168.0.3:8000",
     "http://192.168.100.6:8000",
+    'http://192.168.0.17:8000',  # <-- añade esta línea
 ]
 
 # Agregar dominio de Railway a CSRF trusted origins
@@ -217,3 +221,5 @@ PLATE_REGIONS = config('PLATE_REGIONS', default='bo')
 STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
 STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
+# ===========================
+
