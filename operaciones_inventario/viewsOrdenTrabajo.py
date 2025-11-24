@@ -1,6 +1,7 @@
 import requests
 from rest_framework import mixins, viewsets
 from rest_framework.response import Response
+from rest_framework.decorators import action
 from django.conf import settings
 from .modelsOrdenTrabajo import OrdenTrabajo, DetalleOrdenTrabajo, NotaOrdenTrabajo, TareaOrdenTrabajo, InventarioVehiculo, Inspeccion, PruebaRuta, AsignacionTecnico, ImagenOrdenTrabajo
 from .serializers.serializersOrdenTrabajo import (OrdenTrabajoSerializer, DetalleOrdenTrabajoSerializer, 
@@ -71,6 +72,49 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
             descripcion=descripcion,
             request=self.request
         )
+    
+    @action(detail=False, methods=['get'], url_path='mi-historial')
+    def mi_historial(self, request):
+        """
+        Endpoint para obtener el historial de servicios realizados del cliente.
+        Solo muestra órdenes con estado 'finalizada' o 'entregada'.
+        GET /api/ordenes/mi-historial/
+        """
+        user = request.user
+        user_tenant = user.profile.tenant
+        
+        # Verificar si es cliente
+        from clientes_servicios.models import Cliente
+        try:
+            cliente = Cliente.objects.get(usuario=user, activo=True, tenant=user_tenant)
+        except Cliente.DoesNotExist:
+            return Response(
+                {'error': 'No se encontró un perfil de cliente asociado a este usuario.'},
+                status=400
+            )
+        
+        # Filtrar solo órdenes finalizadas o entregadas del cliente
+        queryset = OrdenTrabajo.objects.filter(
+            tenant=user_tenant,
+            cliente=cliente,
+            estado__in=['finalizada', 'entregada']
+        ).select_related(
+            'cliente', 'vehiculo', 'vehiculo__marca', 'vehiculo__modelo'
+        ).prefetch_related('detalles', 'detalles__item').order_by('-fecha_entrega', '-fecha_finalizacion', '-fecha_creacion')
+        
+        # Filtros opcionales por query params
+        fecha_desde = request.query_params.get('fecha_desde', None)
+        if fecha_desde:
+            queryset = queryset.filter(fecha_entrega__gte=fecha_desde)
+        
+        fecha_hasta = request.query_params.get('fecha_hasta', None)
+        if fecha_hasta:
+            queryset = queryset.filter(fecha_entrega__lte=fecha_hasta)
+        
+        # Serializar los resultados
+        serializer = OrdenTrabajoSerializer(queryset, many=True)
+        
+        return Response(serializer.data)
 
 class DetalleOrdenTrabajoViewSet(viewsets.ModelViewSet):
     serializer_class = DetalleOrdenTrabajoSerializer
