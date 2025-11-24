@@ -93,7 +93,7 @@ class DetalleOrdenTrabajoSerializer(serializers.ModelSerializer):
 class OrdenTrabajoSerializer(serializers.ModelSerializer):
     cliente_nombre = serializers.CharField(source='cliente.nombre', read_only=True)
     cliente_telefono = serializers.CharField(source='cliente.telefono', read_only=True)
-    vehiculo_placa = serializers.CharField(source='vehiculo.placa', read_only=True)
+    vehiculo_placa = serializers.CharField(source='vehiculo.numero_placa', read_only=True)
     vehiculo_modelo = serializers.CharField(source='vehiculo.modelo.nombre', read_only=True)
     vehiculo_marca = serializers.CharField(source='vehiculo.marca.nombre', read_only=True)
     detalles = DetalleOrdenTrabajoSerializer(many=True, required=False)

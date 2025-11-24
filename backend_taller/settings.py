@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'finanzas_facturacion',
     'operaciones_inventario',
     'servicios_IA',
+    'backup_restore',
     'django_filters', 
 
     # Paquetes externos
@@ -193,6 +194,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://192.168.0.3:3000",
     "http://192.168.0.3:8000",
     "http://192.168.100.6:8000",
+    'http://192.168.0.17:8000',  # <-- añade esta línea
 ]
 
 # Agregar dominio de Railway a CSRF trusted origins
@@ -218,3 +220,5 @@ PLATE_REGIONS = config('PLATE_REGIONS', default='bo')
 STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
 STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
+# ===========================
+
