@@ -293,6 +293,117 @@ class NominaViewSet(viewsets.ModelViewSet):
         }
         
         return Response(estadisticas, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['get'])
+    def exportar_excel(self, request, pk=None):
+        """
+        Exporta una nómina específica a Excel con todos los detalles.
+        GET /api/nominas/{id}/exportar_excel/
+        """
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        from django.http import HttpResponse
+        from datetime import datetime
+        
+        nomina = self.get_object()
+        
+        # Crear workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = f"Nómina {nomina.get_periodo()}"
+        
+        # Estilos
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_font = Font(color="FFFFFF", bold=True, size=12)
+        title_font = Font(bold=True, size=14)
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        
+        # Título
+        ws['A1'] = f"NÓMINA - {nomina.get_periodo().upper()}"
+        ws['A1'].font = title_font
+        ws.merge_cells('A1:H1')
+        ws['A1'].alignment = Alignment(horizontal='center')
+        
+        # Info general
+        ws['A3'] = "Taller:"
+        ws['B3'] = request.user.profile.tenant.nombre_taller
+        ws['A4'] = "Período:"
+        ws['B4'] = f"{nomina.fecha_inicio} al {nomina.fecha_corte}"
+        ws['A5'] = "Estado:"
+        ws['B5'] = nomina.get_estado_display()
+        ws['A6'] = "Fecha de registro:"
+        ws['B6'] = nomina.fecha_registro.strftime("%Y-%m-%d %H:%M")
+        
+        # Encabezados de tabla
+        headers = ['EMPLEADO', 'CI', 'SUELDO BASE', 'HORAS EXTRAS', 'TOTAL BRUTO', 'DESCUENTOS', 'SUELDO NETO']
+        row = 8
+        for col, header in enumerate(headers, start=1):
+            cell = ws.cell(row=row, column=col)
+            cell.value = header
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center')
+            cell.border = border
+        
+        # Datos de empleados
+        detalles = nomina.detalles.select_related('empleado').order_by('empleado__apellido')
+        row = 9
+        for detalle in detalles:
+            ws.cell(row=row, column=1, value=f"{detalle.empleado.nombre} {detalle.empleado.apellido}")
+            ws.cell(row=row, column=2, value=detalle.empleado.ci)
+            ws.cell(row=row, column=3, value=float(detalle.sueldo))
+            ws.cell(row=row, column=4, value=float(detalle.horas_extras))
+            ws.cell(row=row, column=5, value=float(detalle.total_bruto))
+            ws.cell(row=row, column=6, value=float(detalle.total_descuento))
+            ws.cell(row=row, column=7, value=float(detalle.sueldo_neto))
+            
+            # Aplicar bordes
+            for col in range(1, 8):
+                ws.cell(row=row, column=col).border = border
+                if col >= 3:  # Formato de moneda para columnas numéricas
+                    ws.cell(row=row, column=col).number_format = '#,##0.00'
+            
+            row += 1
+        
+        # Totales
+        row += 1
+        ws.cell(row=row, column=1, value="TOTAL NÓMINA:").font = Font(bold=True)
+        ws.cell(row=row, column=7, value=float(nomina.total_nomina)).font = Font(bold=True)
+        ws.cell(row=row, column=7).number_format = '#,##0.00'
+        
+        # Ajustar anchos de columna
+        ws.column_dimensions['A'].width = 25
+        ws.column_dimensions['B'].width = 12
+        ws.column_dimensions['C'].width = 15
+        ws.column_dimensions['D'].width = 15
+        ws.column_dimensions['E'].width = 15
+        ws.column_dimensions['F'].width = 15
+        ws.column_dimensions['G'].width = 15
+        
+        # Preparar respuesta HTTP
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename = f"Nomina_{nomina.get_periodo().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        wb.save(response)
+        
+        # Registrar en bitácora
+        registrar_bitacora(
+            usuario=request.user,
+            accion=Bitacora.Accion.CONSULTAR,
+            modulo=Bitacora.Modulo.EMPLEADO,
+            descripcion=f"Nómina {nomina.get_periodo()} exportada a Excel",
+            request=request
+        )
+        
+        return response
 
 
 class DetalleNominaViewSet(viewsets.ModelViewSet):

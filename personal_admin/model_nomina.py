@@ -154,11 +154,12 @@ class DetalleNomina(models.Model):
         from decimal import Decimal
         from .models import Asistencia
         
-        # Obtener el sueldo base del empleado (desde cargo o campo directo)
-        if hasattr(self.empleado, 'cargo') and self.empleado.cargo:
+        # Obtener el sueldo base del empleado (siempre priorizar el sueldo del empleado)
+        sueldo_base = self.empleado.sueldo
+        
+        # Si el empleado no tiene sueldo definido, usar el del cargo como fallback
+        if not sueldo_base and hasattr(self.empleado, 'cargo') and self.empleado.cargo:
             sueldo_base = self.empleado.cargo.sueldo
-        else:
-            sueldo_base = self.empleado.sueldo
         
         self.sueldo = sueldo_base
         
@@ -177,8 +178,8 @@ class DetalleNomina(models.Model):
         self.horas_extras = total_horas_extras
         
         # Calcular valor de hora extra (ejemplo: 1.5x el valor de hora normal)
-        # Asumiendo jornada de 10 horas/día y 26 días/mes = 260 horas/mes
-        horas_mes = Decimal('260.00')
+        # Asumiendo jornada de 8 horas/día y 30 días/mes = 240 horas/mes
+        horas_mes = Decimal('240.00')
         valor_hora_normal = sueldo_base / horas_mes if horas_mes > 0 else Decimal('0.00')
         valor_hora_extra = valor_hora_normal * Decimal('1.5')
         
@@ -210,7 +211,8 @@ class DetalleNomina(models.Model):
         )['total'] or Decimal('0.00')
         
         # Calcular descuento por horas faltantes
-        horas_mes = Decimal('260.00')
+        # Asumiendo jornada de 8 horas/día y 30 días/mes = 240 horas/mes
+        horas_mes = Decimal('240.00')
         valor_hora_normal = self.sueldo / horas_mes if horas_mes > 0 else Decimal('0.00')
         
         descuento_horas_faltantes = total_horas_faltantes * valor_hora_normal
