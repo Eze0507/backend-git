@@ -36,8 +36,12 @@ class ReporteViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        # Cada usuario solo ve sus propios reportes
-        return Reporte.objects.filter(usuario=self.request.user)
+        # Cada usuario solo ve sus propios reportes del tenant al que pertenece
+        try:
+            tenant = self.request.user.profile.tenant
+            return Reporte.objects.filter(usuario=self.request.user, tenant=tenant)
+        except:
+            return Reporte.objects.none()
     
     @action(detail=False, methods=['get'])
     def disponibles(self, request):
@@ -123,6 +127,27 @@ class ReporteViewSet(viewsets.ModelViewSet):
         fecha_inicio = serializer.validated_data.get('fecha_inicio')
         fecha_fin = serializer.validated_data.get('fecha_fin')
         
+        # Obtener el tenant del usuario autenticado
+        try:
+            if not hasattr(request.user, 'profile'):
+                return Response({
+                    'success': False,
+                    'error': 'Su usuario no tiene un perfil configurado. Por favor contacte al administrador para que le asigne un taller.'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            tenant = request.user.profile.tenant
+            
+            if not tenant:
+                return Response({
+                    'success': False,
+                    'error': 'Su perfil no tiene un taller asignado. Por favor contacte al administrador.'
+                }, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': f'Error al obtener el taller: {str(e)}'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
         # Obtener configuración del reporte
         config = obtener_config_reporte(tipo_reporte)
         if not config:
@@ -134,8 +159,8 @@ class ReporteViewSet(viewsets.ModelViewSet):
         try:
             tiempo_inicio = time.time()
             
-            # Generar los datos del reporte
-            datos = self._generar_datos_reporte(config, fecha_inicio, fecha_fin)
+            # Generar los datos del reporte filtrados por tenant
+            datos = self._generar_datos_reporte(config, fecha_inicio, fecha_fin, tenant)
             
             # Generar el archivo según formato
             if formato == 'PDF':
@@ -151,6 +176,7 @@ class ReporteViewSet(viewsets.ModelViewSet):
             # Guardar registro en base de datos
             reporte = Reporte.objects.create(
                 usuario=request.user,
+                tenant=tenant,
                 tipo='ESTATICO',
                 nombre=config['nombre'],
                 descripcion=config['descripcion'],
@@ -276,6 +302,27 @@ class ReporteViewSet(viewsets.ModelViewSet):
         
         data = serializer.validated_data
         
+        # Obtener el tenant del usuario autenticado
+        try:
+            if not hasattr(request.user, 'profile'):
+                return Response({
+                    'success': False,
+                    'error': 'Su usuario no tiene un perfil configurado. Por favor contacte al administrador para que le asigne un taller.'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            tenant = request.user.profile.tenant
+            
+            if not tenant:
+                return Response({
+                    'success': False,
+                    'error': 'Su perfil no tiene un taller asignado. Por favor contacte al administrador.'
+                }, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': f'Error al obtener el taller: {str(e)}'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
         try:
             tiempo_inicio = time.time()
             
@@ -291,12 +338,12 @@ class ReporteViewSet(viewsets.ModelViewSet):
             app_label, model_name = config_entidad['modelo'].split('.')
             Model = apps.get_model(app_label, model_name)
             
-            # Construir queryset
-            queryset = Model.objects.all()
+            # Construir queryset filtrado por tenant
+            queryset = Model.objects.filter(tenant=tenant)
             
             # Aplicar select_related según el modelo para optimizar queries
             if model_name == 'OrdenTrabajo':
-                queryset = queryset.select_related('cliente', 'vehiculo', 'vehiculo__marca', 'vehiculo__modelo', 'tecnico')
+                queryset = queryset.select_related('cliente', 'vehiculo', 'vehiculo__marca', 'vehiculo__modelo')
             elif model_name == 'Item':
                 queryset = queryset.select_related('area')
             elif model_name == 'Vehiculo':
@@ -342,6 +389,7 @@ class ReporteViewSet(viewsets.ModelViewSet):
             # Guardar registro en base de datos
             reporte = Reporte.objects.create(
                 usuario=request.user,
+                tenant=tenant,
                 tipo='PERSONALIZADO',
                 nombre=data['nombre'],
                 descripcion=f"Reporte personalizado de {config_entidad['nombre']}",
@@ -383,10 +431,15 @@ class ReporteViewSet(viewsets.ModelViewSet):
         Genera un reporte usando lenguaje natural
         POST /api/ia/reportes/generar-natural/
         Body: {
-            "consulta": "Órdenes completadas este mes",
+            "consulta": "Órdenes completadas este mes en excel",
             "nombre": "Mi reporte" (opcional),
-            "formato": "PDF" o "XLSX"
+            "formato": "PDF" o "XLSX" (opcional, se detecta de la consulta)
         }
+        
+        El formato se puede especificar en la consulta con frases como:
+        - "en excel", "en formato excel", "como excel"
+        - "en pdf", "en formato pdf", "como pdf"
+        Si no se especifica, por defecto es PDF.
         """
         from django.core.serializers.json import DjangoJSONEncoder
         from .utils.whitelist import obtener_config_entidad
@@ -400,6 +453,27 @@ class ReporteViewSet(viewsets.ModelViewSet):
         
         data = serializer.validated_data
         consulta = data['consulta']
+        
+        # Obtener el tenant del usuario autenticado
+        try:
+            if not hasattr(request.user, 'profile'):
+                return Response({
+                    'success': False,
+                    'error': 'Su usuario no tiene un perfil configurado. Por favor contacte al administrador para que le asigne un taller.'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            tenant = request.user.profile.tenant
+            
+            if not tenant:
+                return Response({
+                    'success': False,
+                    'error': 'Su perfil no tiene un taller asignado. Por favor contacte al administrador.'
+                }, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': f'Error al obtener el taller: {str(e)}'
+            }, status=status.HTTP_403_FORBIDDEN)
         
         try:
             tiempo_inicio = time.time()
@@ -428,12 +502,17 @@ class ReporteViewSet(viewsets.ModelViewSet):
             campos = interpretacion.get('campos_sugeridos', list(config_entidad['campos_disponibles'].keys())[:8])
             filtros = interpretacion.get('filtros', {})
             
+            # Obtener formato detectado de la consulta, si no, del data, si no, PDF por defecto
+            formato = interpretacion.get('formato')
+            if not formato:
+                formato = data.get('formato', 'PDF')
+            
             # Obtener el modelo
             app_label, model_name = config_entidad['modelo'].split('.')
             Model = apps.get_model(app_label, model_name)
             
-            # Construir queryset
-            queryset = Model.objects.all()
+            # Construir queryset filtrado por tenant
+            queryset = Model.objects.filter(tenant=tenant)
             
             # Aplicar select_related según el modelo para optimizar queries
             if model_name == 'OrdenTrabajo':
@@ -471,8 +550,8 @@ class ReporteViewSet(viewsets.ModelViewSet):
                 'consulta_interpretada': interpretacion
             }
             
-            # Generar archivo según formato
-            if data['formato'] == 'PDF':
+            # Generar archivo según formato detectado
+            if formato == 'PDF':
                 archivo = self._generar_pdf_personalizado(datos_reporte, config_entidad)
                 nombre_archivo = f"{entidad}_natural_{timezone.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             else:  # XLSX
@@ -485,6 +564,7 @@ class ReporteViewSet(viewsets.ModelViewSet):
             # Guardar registro en base de datos
             reporte = Reporte.objects.create(
                 usuario=request.user,
+                tenant=tenant,
                 tipo='NATURAL',
                 nombre=nombre,
                 descripcion=f"Consulta: {consulta}",
@@ -492,9 +572,10 @@ class ReporteViewSet(viewsets.ModelViewSet):
                     'consulta': consulta,
                     'interpretacion': interpretacion,
                     'campos': campos,
-                    'filtros': filtros
+                    'filtros': filtros,
+                    'formato': formato
                 }, cls=DjangoJSONEncoder),
-                formato=data['formato'],
+                formato=formato,
                 registros_procesados=len(registros),
                 tiempo_generacion=round(tiempo_generacion, 2)
             )
@@ -503,7 +584,7 @@ class ReporteViewSet(viewsets.ModelViewSet):
             reporte.archivo.save(nombre_archivo, archivo, save=True)
             
             # Registrar en bitácora
-            descripcion = f"Reporte con lenguaje natural '{nombre}' generado. Consulta: '{consulta}'. Entidad: {config_entidad['nombre']}, Formato: {data['formato']}, Registros: {len(registros)}, Tiempo: {round(tiempo_generacion, 2)}s"
+            descripcion = f"Reporte con lenguaje natural '{nombre}' generado. Consulta: '{consulta}'. Entidad: {config_entidad['nombre']}, Formato: {formato}, Registros: {len(registros)}, Tiempo: {round(tiempo_generacion, 2)}s"
             registrar_bitacora(
                 usuario=request.user,
                 accion=Bitacora.Accion.CREAR,
@@ -532,19 +613,7 @@ class ReporteViewSet(viewsets.ModelViewSet):
                 'traceback': traceback.format_exc()
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    @action(detail=False, methods=['get'])
-    def ejemplos_nl(self, request):
-        """
-        Retorna ejemplos de consultas en lenguaje natural
-        GET /api/ia/reportes/ejemplos-nl/
-        """
-        ejemplos = generar_ejemplos_consultas()
-        return Response({
-            'success': True,
-            'ejemplos': ejemplos
-        })
-    
-    def _generar_datos_reporte(self, config, fecha_inicio=None, fecha_fin=None):
+    def _generar_datos_reporte(self, config, fecha_inicio=None, fecha_fin=None, tenant=None):
         """
         Genera los datos para el reporte según la configuración
         """
@@ -554,6 +623,10 @@ class ReporteViewSet(viewsets.ModelViewSet):
         
         # Construir filtros
         filtros = self._construir_filtros(config['filtros_default'], fecha_inicio, fecha_fin)
+        
+        # IMPORTANTE: Filtrar por tenant si se proporciona
+        if tenant:
+            filtros['tenant'] = tenant
         
         # Construir queryset base
         queryset = Model.objects.filter(**filtros) if filtros else Model.objects.all()
@@ -597,17 +670,14 @@ class ReporteViewSet(viewsets.ModelViewSet):
                 filtros[key] = timezone.now().month
             elif value == 'anio_actual':
                 filtros[key] = timezone.now().year
-            elif value == 'stock_minimo':
-                # Filtro especial para items críticos
-                continue  # Se maneja con F()
             else:
                 # Manejar listas y otros valores directamente
                 filtros[key] = value
         
-        # Filtros personalizados de fechas
-        if fecha_inicio:
+        # Filtros personalizados de fechas (solo si no hay filtros de fecha ya definidos)
+        if fecha_inicio and 'fecha_creacion__gte' not in filtros:
             filtros['fecha_creacion__gte'] = fecha_inicio
-        if fecha_fin:
+        if fecha_fin and 'fecha_creacion__lte' not in filtros:
             filtros['fecha_creacion__lte'] = fecha_fin
         
         return filtros

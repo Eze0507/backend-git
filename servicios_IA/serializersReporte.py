@@ -133,7 +133,7 @@ class ReporteNaturalSerializer(serializers.Serializer):
     """Serializer para generar reportes usando lenguaje natural"""
     consulta = serializers.CharField(
         max_length=500,
-        help_text="Consulta en lenguaje natural (español)"
+        help_text="Consulta en lenguaje natural (español). Puede incluir el formato en la consulta (ej: 'ordenes finalizadas en excel')"
     )
     nombre = serializers.CharField(
         max_length=200,
@@ -143,7 +143,8 @@ class ReporteNaturalSerializer(serializers.Serializer):
     formato = serializers.ChoiceField(
         choices=['PDF', 'XLSX'],
         default='PDF',
-        help_text="Formato de salida del reporte"
+        required=False,
+        help_text="Formato de salida del reporte (opcional, se detecta automáticamente de la consulta, por defecto PDF)"
     )
 
     def validate_consulta(self, value):

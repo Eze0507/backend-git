@@ -48,6 +48,10 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
         )
 
     def perform_update(self, serializer):
+        # Guardar el estado anterior antes de actualizar
+        instance = self.get_object()
+        estado_anterior = instance.estado
+        
         orden = serializer.save()
         registrar_bitacora(
             usuario=self.request.user,
@@ -56,6 +60,29 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
             descripcion=f"Se actualizó la orden de trabajo #{orden.id}.",
             request=self.request
         )
+        
+        # 📱 ENVIAR NOTIFICACIÓN SI EL ESTADO CAMBIÓ A 'FINALIZADA'
+        if estado_anterior != 'finalizada' and orden.estado == 'finalizada':
+            if orden.cliente and orden.cliente.usuario:
+                from personal_admin.fcm_service import send_notification
+                
+                # Obtener descripción del servicio desde los detalles
+                descripcion_servicio = orden.fallo_requerimiento or "tu servicio"
+                if orden.detalles.exists():
+                    primer_detalle = orden.detalles.first()
+                    descripcion_servicio = primer_detalle.nombre_item
+                
+                send_notification(
+                    user=orden.cliente.usuario,
+                    title="🔧 Servicio finalizado",
+                    body=f"Tu Orden #{orden.id} ha sido completada. El servicio de {descripcion_servicio} está listo para ser retirado.",
+                    data={
+                        'tipo': 'orden_finalizada',
+                        'orden_id': str(orden.id),
+                        'screen': 'orden_detalle',
+                        'estado': 'finalizada'
+                    }
+                )
 
     def perform_destroy(self, instance):
         # Obtenemos la información ANTES de borrar el objeto

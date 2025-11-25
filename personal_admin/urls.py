@@ -3,6 +3,7 @@ from django.urls import path, include
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from .views_device_token import register_device_token, unregister_device_token
 
 from .views import (
     UserViewSet, 
@@ -76,6 +77,8 @@ urlpatterns = [
     path('asistencia/mi-historial/', MiHistorialAsistenciaView.as_view(), name='mi-historial-asistencia'),
     path('asistencia/reporte-mensual/', AsistenciaReporteMensualView.as_view(), name='asistencia-reporte-mensual'),
     path('asistencia/diagnostico/', DiagnosticoAsistenciasView.as_view(), name='diagnostico-asistencias'),
+    path('device-token/register/', register_device_token, name='device-token-register'),
+    path('device-token/unregister/', unregister_device_token, name='device-token-unregister'),
 ]
 
 

@@ -20,9 +20,7 @@ REPORTES_ESTATICOS = {
             'fallo_requerimiento',
             'total'
         ],
-        'filtros_default': {
-            'fecha_creacion__gte': 'hace_30_dias'
-        }
+        'filtros_default': {}  # Sin filtros por defecto, muestra todas las órdenes
     },
     
     'ordenes_pendientes': {
@@ -41,7 +39,9 @@ REPORTES_ESTATICOS = {
             'fallo_requerimiento',
             'total',
         ],
-        'filtros_default': {}  # Se aplica dinámicamente en la vista
+        'filtros_default': {
+            'estado__in': ['pendiente', 'en_proceso']
+        }
     },
     
     'ordenes_completadas_mes': {
@@ -56,13 +56,15 @@ REPORTES_ESTATICOS = {
             'cliente__apellido',
             'vehiculo__numero_placa',
             'vehiculo__marca__nombre',
+            'vehiculo__modelo__nombre',
             'fallo_requerimiento',
+            'estado',
             'total',
         ],
         'filtros_default': {
             'estado__in': ['finalizada', 'entregada'],
-            'fecha_finalizacion__month': 'mes_actual',
-            'fecha_finalizacion__year': 'anio_actual'
+            'fecha_creacion__month': 'mes_actual',
+            'fecha_creacion__year': 'anio_actual'
         }
     },
     
@@ -76,13 +78,17 @@ REPORTES_ESTATICOS = {
             'fecha_finalizacion',
             'cliente__nombre',
             'cliente__apellido',
+            'subtotal',
+            'descuento',
+            'impuesto',
             'total',
             'estado',
+            'pago',
         ],
         'filtros_default': {
             'estado__in': ['finalizada', 'entregada'],
-            'fecha_finalizacion__month': 'mes_actual',
-            'fecha_finalizacion__year': 'anio_actual'
+            'fecha_creacion__month': 'mes_actual',
+            'fecha_creacion__year': 'anio_actual'
         }
     },
     
@@ -101,7 +107,7 @@ REPORTES_ESTATICOS = {
             'estado',
         ],
         'filtros_default': {
-            'stock__lt': 30,
+            'stock__lt': 10,
             'tipo__in': ['Item de venta', 'Item de taller']
         }
     },
