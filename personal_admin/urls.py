@@ -34,6 +34,7 @@ from .views import (
     MiHistorialAsistenciaView,
     DiagnosticoAsistenciasView
 )
+from .views_nomina import NominaViewSet, DetalleNominaViewSet
 
 app_name = 'personal_admin'  # ← añadido para evitar conflictos de nombres
 
@@ -53,6 +54,10 @@ router.register(r'bitacora', BitacoraViewSet, basename='bitacora')
 
 # Ruta para Asistencia
 router.register(r'asistencias', AsistenciaViewSet, basename='asistencia')
+
+# Rutas para Nómina
+router.register(r'nominas', NominaViewSet, basename='nomina')
+router.register(r'detalle-nomina', DetalleNominaViewSet, basename='detalle-nomina')
 
 
 urlpatterns = [
