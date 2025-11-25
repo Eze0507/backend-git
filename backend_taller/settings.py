@@ -20,7 +20,7 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 RAILWAY_PUBLIC_DOMAIN = config('RAILWAY_PUBLIC_DOMAIN', default='')
 RAILWAY_STATIC_URL = config('RAILWAY_STATIC_URL', default='')
 
-ALLOWED_HOSTS = ["192.168.0.3","localhost", "127.0.0.1", "backend-git-production.up.railway.app"]
+ALLOWED_HOSTS = ["192.168.0.3","localhost", "127.0.0.1", "backend-git-production.up.railway.app","192.168.100.6"]
 
 if RAILWAY_PUBLIC_DOMAIN:
     ALLOWED_HOSTS.append(RAILWAY_PUBLIC_DOMAIN)
@@ -31,7 +31,7 @@ if RAILWAY_STATIC_URL:
 
 # Para desarrollo local con tu IP
 if DEBUG:
-    ALLOWED_HOSTS.append("192.168.1.141")
+    ALLOWED_HOSTS.append("192.168.100.6")
 
 # Application definition
 
@@ -222,4 +222,10 @@ STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
 # ===========================
 
-FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
+# ===========================
+# FIREBASE CLOUD MESSAGING CONFIGURATION
+# ===========================
+FIREBASE_PROJECT_ID = config('FIREBASE_PROJECT_ID', default='')
+FIREBASE_SERVICE_ACCOUNT_JSON = config('FIREBASE_SERVICE_ACCOUNT_JSON', default='{}')
+# ===========================
+

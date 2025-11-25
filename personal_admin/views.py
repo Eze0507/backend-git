@@ -798,7 +798,24 @@ class TenantProfileView(RetrieveUpdateAPIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def get_object(self):
-        return self.request.user.profile.tenant
+        """
+        Obtiene el tenant (taller) asociado al usuario autenticado.
+        - Si es admin/empleado: obtiene desde user.profile.tenant
+        - Si es cliente: obtiene desde cliente.tenant
+        """
+        user = self.request.user
+        
+        # Verificar si el usuario es un cliente
+        if hasattr(user, 'cliente'):
+            return user.cliente.tenant
+        
+        # Si no es cliente, obtener tenant desde profile (admin/empleado)
+        if hasattr(user, 'profile'):
+            return user.profile.tenant
+        
+        # Si no tiene ni cliente ni profile, retornar None
+        from rest_framework.exceptions import NotFound
+        raise NotFound("No se encontró información del taller para este usuario")
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         data = request.data.copy()
@@ -1347,10 +1364,17 @@ class MarcarAsistenciaView(APIView):
     def post(self, request):
         user = request.user
         
-        # Obtener tenant (igual que en crear cita) - con protección
+        # Log inicial
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[MARCAR ASISTENCIA] Inicio - Usuario: {user.username}")
+        
+        # Obtener tenant
         try:
             user_tenant = user.profile.tenant
-        except AttributeError:
+            logger.info(f"[MARCAR ASISTENCIA] Tenant obtenido: {user_tenant.id}")
+        except AttributeError as e:
+            logger.error(f"[MARCAR ASISTENCIA] Error obteniendo tenant: {e}")
             return Response(
                 {"error": "Usuario no tiene perfil asociado. Contacte al administrador."},
                 status=status.HTTP_400_BAD_REQUEST
@@ -1361,17 +1385,21 @@ class MarcarAsistenciaView(APIView):
         if tipo not in ['entrada', 'salida']:
             return Response({"error": "tipo debe ser 'entrada' o 'salida'"}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Buscar o crear empleado (igual que en crear cita - perform_create)
+        # Buscar empleado
         empleado = None
         try:
             empleado = Empleado.objects.get(usuario=user, estado=True, tenant=user_tenant)
+            logger.info(f"[MARCAR ASISTENCIA] Empleado encontrado: {empleado.id}")
         except Empleado.DoesNotExist:
+            # Intentar buscar sin tenant y actualizar
             try:
                 empleado = Empleado.objects.get(usuario=user, estado=True)
                 empleado.tenant = user_tenant
                 empleado.save()
+                logger.info(f"[MARCAR ASISTENCIA] Empleado actualizado con tenant: {empleado.id}")
             except Empleado.DoesNotExist:
                 # Crear empleado automáticamente
+                logger.warning(f"[MARCAR ASISTENCIA] Creando empleado automático para {user.username}")
                 from .models import Cargo
                 cargo = Cargo.objects.filter(tenant=user_tenant).first()
                 if not cargo:
@@ -1392,12 +1420,15 @@ class MarcarAsistenciaView(APIView):
                     sueldo=0.00,
                     estado=True
                 )
+                logger.info(f"[MARCAR ASISTENCIA] Empleado creado: {empleado.id}")
         
         # Fecha y hora actual en zona horaria de Bolivia
         tz_bolivia = pytz.timezone('America/La_Paz')
         ahora = datetime.now(tz_bolivia)
         fecha = ahora.date()
         hora = ahora.time()
+        
+        logger.info(f"[MARCAR ASISTENCIA] Fecha: {fecha}, Hora: {hora}, Tipo: {tipo}")
         
         # Validar que sea día laboral (lunes a viernes)
         dia_semana = ahora.weekday()  # 0 = lunes, 6 = domingo
@@ -1409,35 +1440,28 @@ class MarcarAsistenciaView(APIView):
         
         # MARCAR ENTRADA
         if tipo == 'entrada':
-            # IMPORTANTE: Usar update_or_create con tenant para asegurar que siempre se guarde
+            # ✅ CORREGIDO: tenant NO debe estar en defaults, solo en criterios de búsqueda
             asistencia, created = Asistencia.objects.update_or_create(
                 empleado=empleado,
                 fecha=fecha,
                 tenant=user_tenant,
                 defaults={
-                    'hora_entrada': hora,
-                    'tenant': user_tenant  # CRÍTICO: Asegurar tenant explícitamente
+                    'hora_entrada': hora
                 }
             )
             
-            # Verificación adicional: SIEMPRE asegurar que el tenant esté correcto
-            if asistencia.tenant != user_tenant:
-                asistencia.tenant = user_tenant
-                asistencia.hora_entrada = hora
-                asistencia.save()
+            # Log de verificación
+            logger.info(f"[MARCAR ASISTENCIA] ✅ Entrada guardada - ID: {asistencia.id}, Created: {created}, Tenant: {asistencia.tenant.id}, Empleado: {empleado.id}")
             
-            # Verificar que el empleado tenga el tenant correcto
-            if empleado.tenant != user_tenant:
-                empleado.tenant = user_tenant
-                empleado.save()
-            
-            # Log para verificar
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.info(f"[MARCAR ASISTENCIA] ✅ Entrada - Empleado: {empleado.id} ({empleado.nombre}), Tenant: {asistencia.tenant.id}, Fecha: {fecha}, Hora: {hora}")
-            
-            # Refrescar desde la BD
+            # Verificar que se guardó correctamente
             asistencia.refresh_from_db()
+            if not asistencia.tenant:
+                logger.error(f"[MARCAR ASISTENCIA] ❌ ERROR: Asistencia {asistencia.id} NO tiene tenant después de guardar")
+                # Intentar guardar manualmente
+                asistencia.tenant = user_tenant
+                asistencia.save(update_fields=['tenant'])
+                asistencia.refresh_from_db()
+                logger.info(f"[MARCAR ASISTENCIA] Tenant forzado manualmente: {asistencia.tenant.id if asistencia.tenant else 'SIGUE SIN TENANT'}")
             
             return Response({
                 "success": True,
@@ -1447,35 +1471,32 @@ class MarcarAsistenciaView(APIView):
                 "hora_salida": asistencia.hora_salida.strftime('%H:%M:%S') if asistencia.hora_salida else None,
                 "estado": asistencia.estado,
                 "empleado": f"{empleado.nombre} {empleado.apellido}",
-                "empleado_id": empleado.id
+                "empleado_id": empleado.id,
+                "asistencia_id": asistencia.id
             }, status=status.HTTP_200_OK)
         
         # MARCAR SALIDA
-        asistencia = Asistencia.objects.filter(
-            empleado=empleado,
-            fecha=fecha,
-            tenant=user_tenant
-        ).first()
-        
-        if not asistencia:
+        try:
+            asistencia = Asistencia.objects.get(
+                empleado=empleado,
+                fecha=fecha,
+                tenant=user_tenant
+            )
+        except Asistencia.DoesNotExist:
+            logger.warning(f"[MARCAR ASISTENCIA] No se encontró entrada previa para empleado {empleado.id} en fecha {fecha}")
             return Response({"error": "Debe marcar entrada primero"}, status=status.HTTP_400_BAD_REQUEST)
         
-        # CRÍTICO: Asegurar que el tenant esté guardado
-        if asistencia.tenant != user_tenant:
-            asistencia.tenant = user_tenant
-        
+        # Guardar hora de salida
         asistencia.hora_salida = hora
         asistencia.save()  # El modelo calcula automáticamente horas_extras, horas_faltantes y estado
         
-        # Log para verificar
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"[MARCAR ASISTENCIA] ✅ Salida - Empleado: {empleado.id} ({empleado.nombre}), Tenant: {asistencia.tenant.id}, Fecha: {fecha}, Hora: {hora}, Estado: {asistencia.estado}")
+        # Log de verificación
+        logger.info(f"[MARCAR ASISTENCIA] ✅ Salida guardada - ID: {asistencia.id}, Tenant: {asistencia.tenant.id}, Estado: {asistencia.estado}")
         
-        # Refrescar desde la BD para obtener datos calculados
+        # Refrescar desde la BD
         asistencia.refresh_from_db()
         
-        # Calcular horas trabajadas totales (datetime ya está importado al inicio del archivo)
+        # Calcular horas trabajadas totales
         entrada_dt = datetime.combine(fecha, asistencia.hora_entrada)
         salida_dt = datetime.combine(fecha, asistencia.hora_salida)
         if salida_dt < entrada_dt:
@@ -1494,7 +1515,8 @@ class MarcarAsistenciaView(APIView):
             "horas_faltantes": float(asistencia.horas_faltantes) if asistencia.horas_faltantes else 0.00,
             "estado": asistencia.estado,
             "empleado": f"{empleado.nombre} {empleado.apellido}",
-            "empleado_id": empleado.id
+            "empleado_id": empleado.id,
+            "asistencia_id": asistencia.id
         }, status=status.HTTP_200_OK)
 
 

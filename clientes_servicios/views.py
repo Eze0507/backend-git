@@ -240,6 +240,28 @@ class CitaViewSet(viewsets.ModelViewSet):
             descripcion=descripcion,
             request=self.request
         )
+        
+        # 📱 ENVIAR NOTIFICACIÓN PUSH AL CLIENTE
+        if instance.cliente and instance.cliente.usuario:
+            from personal_admin.fcm_service import send_notification
+            
+            # Formatear fecha y hora
+            fecha_hora = instance.fecha_hora_inicio.strftime('%d/%m/%Y a las %H:%M')
+            nombre_taller = user_tenant.nombre if hasattr(user_tenant, 'nombre') else 'El taller'
+            tipo_servicio = instance.get_tipo_cita_display().lower()
+            descripcion_servicio = instance.descripcion or f"servicio de {tipo_servicio}"
+            
+            send_notification(
+                user=instance.cliente.usuario,
+                title="📅 Nueva cita programada",
+                body=f"{nombre_taller} creó una cita para ti el {fecha_hora} para el {descripcion_servicio}. Toca para ver los detalles.",
+                data={
+                    'tipo': 'cita',
+                    'cita_id': str(instance.id),
+                    'screen': 'cita_detalle',
+                    'fecha_hora': instance.fecha_hora_inicio.isoformat()
+                }
+            )
     
     def perform_update(self, serializer):
         """Actualizar cita y registrar en bitácora"""

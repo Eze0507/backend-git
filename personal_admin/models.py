@@ -168,3 +168,4 @@ class Asistencia(models.Model):
     
     def __str__(self):
         return f"{self.empleado} - {self.fecha} ({self.estado})"
+    

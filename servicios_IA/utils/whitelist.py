@@ -11,23 +11,28 @@ ENTIDADES_DISPONIBLES = {
         'campos_disponibles': {
             'id': {'label': 'ID', 'tipo': 'number'},
             'fecha_creacion': {'label': 'Fecha de Creación', 'tipo': 'datetime'},
-            'fecha_actualizacion': {'label': 'Última Actualización', 'tipo': 'datetime'},
-            'fecha_cierre': {'label': 'Fecha de Cierre', 'tipo': 'datetime'},
+            'fecha_inicio': {'label': 'Fecha de Inicio', 'tipo': 'datetime'},
+            'fecha_finalizacion': {'label': 'Fecha de Finalización', 'tipo': 'datetime'},
+            'fecha_entrega': {'label': 'Fecha de Entrega', 'tipo': 'datetime'},
             'estado': {'label': 'Estado', 'tipo': 'text'},
             'fallo_requerimiento': {'label': 'Fallo/Requerimiento', 'tipo': 'text'},
+            'kilometraje': {'label': 'Kilometraje', 'tipo': 'number'},
+            'observaciones': {'label': 'Observaciones', 'tipo': 'text'},
+            'subtotal': {'label': 'Subtotal (Bs.)', 'tipo': 'decimal'},
+            'descuento': {'label': 'Descuento (Bs.)', 'tipo': 'decimal'},
+            'impuesto': {'label': 'Impuesto (Bs.)', 'tipo': 'decimal'},
             'total': {'label': 'Total (Bs.)', 'tipo': 'decimal'},
+            'pago': {'label': 'Pagado', 'tipo': 'boolean'},
             'cliente__nombre': {'label': 'Cliente - Nombre', 'tipo': 'text'},
             'cliente__apellido': {'label': 'Cliente - Apellido', 'tipo': 'text'},
             'cliente__telefono': {'label': 'Cliente - Teléfono', 'tipo': 'text'},
             'cliente__nit': {'label': 'Cliente - NIT', 'tipo': 'text'},
-            'cliente__email': {'label': 'Cliente - Email', 'tipo': 'text'},
+            'cliente__direccion': {'label': 'Cliente - Dirección', 'tipo': 'text'},
             'vehiculo__numero_placa': {'label': 'Vehículo - Placa', 'tipo': 'text'},
             'vehiculo__marca__nombre': {'label': 'Vehículo - Marca', 'tipo': 'text'},
             'vehiculo__modelo__nombre': {'label': 'Vehículo - Modelo', 'tipo': 'text'},
             'vehiculo__año': {'label': 'Vehículo - Año', 'tipo': 'number'},
             'vehiculo__color': {'label': 'Vehículo - Color', 'tipo': 'text'},
-            'tecnico__first_name': {'label': 'Técnico - Nombre', 'tipo': 'text'},
-            'tecnico__last_name': {'label': 'Técnico - Apellido', 'tipo': 'text'},
         },
         'filtros_disponibles': {
             'estado': {
@@ -36,7 +41,8 @@ ENTIDADES_DISPONIBLES = {
                 'opciones': [
                     {'value': 'pendiente', 'label': 'Pendiente'},
                     {'value': 'en_proceso', 'label': 'En Proceso'},
-                    {'value': 'completada', 'label': 'Completada'},
+                    {'value': 'finalizada', 'label': 'Finalizada'},
+                    {'value': 'entregada', 'label': 'Entregada'},
                     {'value': 'cancelada', 'label': 'Cancelada'},
                 ]
             },
@@ -50,13 +56,13 @@ ENTIDADES_DISPONIBLES = {
                 'tipo': 'date',
                 'placeholder': 'DD/MM/YYYY'
             },
-            'fecha_cierre__gte': {
-                'label': 'Fecha de cierre desde',
+            'fecha_finalizacion__gte': {
+                'label': 'Fecha de finalización desde',
                 'tipo': 'date',
                 'placeholder': 'DD/MM/YYYY'
             },
-            'fecha_cierre__lte': {
-                'label': 'Fecha de cierre hasta',
+            'fecha_finalizacion__lte': {
+                'label': 'Fecha de finalización hasta',
                 'tipo': 'date',
                 'placeholder': 'DD/MM/YYYY'
             },
@@ -93,13 +99,21 @@ ENTIDADES_DISPONIBLES = {
             'apellido': {'label': 'Apellido', 'tipo': 'text'},
             'nit': {'label': 'NIT', 'tipo': 'text'},
             'telefono': {'label': 'Teléfono', 'tipo': 'text'},
-            'email': {'label': 'Email', 'tipo': 'text'},
             'direccion': {'label': 'Dirección', 'tipo': 'text'},
             'tipo_cliente': {'label': 'Tipo de Cliente', 'tipo': 'text'},
-            'created_at': {'label': 'Fecha de Registro', 'tipo': 'datetime'},
-            'updated_at': {'label': 'Última Actualización', 'tipo': 'datetime'},
+            'activo': {'label': 'Estado (Activo/Inactivo)', 'tipo': 'boolean'},
+            'fecha_registro': {'label': 'Fecha de Registro', 'tipo': 'datetime'},
+            'fecha_actualizacion': {'label': 'Última Actualización', 'tipo': 'datetime'},
         },
         'filtros_disponibles': {
+            'activo': {
+                'label': 'Estado',
+                'tipo': 'choice',
+                'opciones': [
+                    {'value': True, 'label': 'Activo'},
+                    {'value': False, 'label': 'Inactivo'},
+                ]
+            },
             'tipo_cliente': {
                 'label': 'Tipo de Cliente',
                 'tipo': 'choice',
@@ -108,12 +122,12 @@ ENTIDADES_DISPONIBLES = {
                     {'value': 'EMPRESA', 'label': 'Empresa'},
                 ]
             },
-            'created_at__gte': {
+            'fecha_registro__gte': {
                 'label': 'Registrado desde',
                 'tipo': 'date',
                 'placeholder': 'DD/MM/YYYY'
             },
-            'created_at__lte': {
+            'fecha_registro__lte': {
                 'label': 'Registrado hasta',
                 'tipo': 'date',
                 'placeholder': 'DD/MM/YYYY'
@@ -152,7 +166,8 @@ ENTIDADES_DISPONIBLES = {
             'cliente__nombre': {'label': 'Propietario - Nombre', 'tipo': 'text'},
             'cliente__apellido': {'label': 'Propietario - Apellido', 'tipo': 'text'},
             'cliente__telefono': {'label': 'Propietario - Teléfono', 'tipo': 'text'},
-            'cliente__email': {'label': 'Propietario - Email', 'tipo': 'text'},
+            'cliente__nit': {'label': 'Propietario - NIT', 'tipo': 'text'},
+            'cliente__direccion': {'label': 'Propietario - Dirección', 'tipo': 'text'},
         },
         'filtros_disponibles': {
             'año__gte': {
