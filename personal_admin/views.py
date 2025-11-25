@@ -46,6 +46,10 @@ import calendar
 from decimal import Decimal
 from django.utils import timezone
 import pytz
+import stripe
+import traceback
+from .models_saas import Tenant, HistorialPagoSuscripcion
+from decimal import Decimal
 
 # ===== FUNCIÓN HELPER PARA REGISTRAR EN BITÁCORA =====
 def registrar_bitacora(usuario, accion, modulo, descripcion, request=None):
@@ -557,18 +561,54 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 @method_decorator(csrf_exempt, name='dispatch')
 class CustomTokenObtainPairView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
-        # Obtener el username antes de la autenticación
+        # 1. Obtener el username antes (para logs)
         username = request.data.get('username', 'Usuario desconocido')
         
-        # Llamar al método post original para autenticar
+        # 2. Autenticar (Llamada original)
         response = super().post(request, *args, **kwargs)
         
-        # Si la autenticación fue exitosa (status 200), registrar en bitácora
+        # 3. Si el login fue exitoso, inyectamos datos y guardamos log
         if response.status_code == 200:
             try:
-                # Obtener el usuario autenticado
                 user = User.objects.get(username=username)
-                # Registrar LOGIN en bitácora
+                
+                # --- NUEVA LÓGICA SAAS (Inicio) ---
+                # Preparamos los datos del Tenant para el Frontend
+                tenant_data = None
+                
+                # Verificamos si el usuario tiene perfil y tenant
+                if hasattr(user, 'profile') and user.profile.tenant:
+                    tenant = user.profile.tenant
+                    if tenant.fecha_fin_suscripcion and tenant.fecha_fin_suscripcion < timezone.now():
+                        tenant.suscripcion_activa = False
+                        tenant.save() # Bloqueamos el acceso
+                    
+                    ias_restantes = 0
+                    if tenant.suscripcion_activa and tenant.fecha_fin_suscripcion:
+                        delta = tenant.fecha_fin_suscripcion - timezone.now()
+                        dias_restantes = max(0, delta.days)
+                    
+                    tenant_data = {
+                        'id': tenant.id,
+                        'nombre': tenant.nombre_taller,
+                        'suscripcion_activa': tenant.suscripcion_activa, # <--- EL DATO CLAVE
+                        'plan': tenant.plan,
+                        'es_propietario': (tenant.propietario == user),
+                        'logo': tenant.logo,
+                        'dias_restantes': dias_restantes
+                    }
+                
+                # Inyectamos 'user_data' en la respuesta JSON
+                # El frontend leerá: response.data.user_data.tenant.suscripcion_activa
+                response.data['user_data'] = {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'tenant': tenant_data 
+                }
+                # --- NUEVA LÓGICA SAAS (Fin) ---
+
+                # Tu lógica de Bitácora (Intacta)
                 registrar_bitacora(
                     usuario=user,
                     accion=Bitacora.Accion.LOGIN,
@@ -576,18 +616,18 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                     descripcion=f"Usuario {username} inició sesión exitosamente",
                     request=request
                 )
+            
             except User.DoesNotExist:
-                # Si no se encuentra el usuario, registrar con información limitada
+                # ... (tu manejo de error existente) ...
                 registrar_bitacora(
-                    usuario=None,  # No hay usuario autenticado aún
+                    usuario=None,
                     accion=Bitacora.Accion.LOGIN,
                     modulo=Bitacora.Modulo.AUTENTICACION,
                     descripcion=f"Intento de login con username: {username}",
                     request=request
                 )
             except Exception as e:
-                # No fallar la autenticación por errores en bitácora
-                print(f"Error al registrar login en bitácora: {e}")
+                print(f"Error en login: {e}")
         
         return response
 
@@ -1816,3 +1856,173 @@ class AsistenciaReporteMensualView(APIView):
 # VISTA SIMPLE PARA MARCAR ASISTENCIA
 # APIView de DRF - NO REQUIERE CSRF
 # ============================================
+class CreateEmbeddedSubscription(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        print("--- INICIANDO PROCESO DE SUSCRIPCIÓN ---")
+        
+        if not settings.STRIPE_SECRET_KEY:
+            print(" ERROR CRÍTICO: No se encontró STRIPE_SECRET_KEY en settings")
+            return Response({'error': 'Configuración de servidor incompleta'}, status=500)
+            
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+        print("✅ Stripe API Key configurada")
+
+        try:
+            user_tenant = request.user.profile.tenant
+            price_id = request.data.get('price_id')
+            print(f"Tenant: {user_tenant.nombre_taller} (ID: {user_tenant.id})")
+            print(f"Price ID recibido: {price_id}")
+
+            if not price_id:
+                return Response({'error': 'Price ID requerido'}, status=400)
+
+            # Verificar/Crear Cliente en Stripe
+            if not user_tenant.stripe_customer_id:
+                print("Tenant no tiene ID de Stripe. Creando...")
+                customer = stripe.Customer.create(
+                    email=request.user.email,
+                    name=user_tenant.nombre_taller,
+                    metadata={'tenant_id': user_tenant.id}
+                )
+                user_tenant.stripe_customer_id = customer.id
+                user_tenant.save()
+                print(f"Cliente creado en Stripe: {customer.id}")
+            else:
+                print(f"Usando Cliente existente: {user_tenant.stripe_customer_id}")
+
+            # ============================================
+            # NUEVA ESTRATEGIA: Obtener el precio primero
+            # ============================================
+            print("Obteniendo información del precio...")
+            price = stripe.Price.retrieve(price_id)
+            amount = price.unit_amount  # Monto en centavos
+            currency = price.currency
+            print(f"Precio: {amount} {currency.upper()}")
+
+            # ============================================
+            # CREAR PAYMENT INTENT PRIMERO
+            # ============================================
+            print("Creando Payment Intent...")
+            payment_intent = stripe.PaymentIntent.create(
+                amount=amount,
+                currency=currency,
+                customer=user_tenant.stripe_customer_id,
+                setup_future_usage='off_session',  # Permite cobros futuros
+                metadata={
+                    'tenant_id': user_tenant.id,
+                    'price_id': price_id,
+                    'integration': 'subscription_payment'
+                }
+            )
+            print(f"Payment Intent creado: {payment_intent.id}")
+            print(f"Client Secret: {payment_intent.client_secret[:20]}...")
+
+            # ============================================
+            # CREAR SUSCRIPCIÓN DESPUÉS (sin cobrar aún)
+            # ============================================
+            print("Creando suscripción...")
+            subscription = stripe.Subscription.create(
+                customer=user_tenant.stripe_customer_id,
+                items=[{'price': price_id}],
+                payment_behavior='default_incomplete',
+                payment_settings={'save_default_payment_method': 'on_subscription'},
+                metadata={'tenant_id': user_tenant.id}
+            )
+            print(f"Suscripción creada: {subscription.id}")
+            
+            # Guardar IDs en el tenant
+            user_tenant.stripe_subscription_id = subscription.id
+            user_tenant.save()
+            print(f"Subscription ID guardado en tenant")
+
+            return Response({
+                'subscriptionId': subscription.id,
+                'clientSecret': payment_intent.client_secret,
+                'paymentIntentId': payment_intent.id
+            })
+            
+        except Exception as e:
+            print(str(e))
+            traceback.print_exc()
+            return Response({'error': str(e)}, status=500)
+
+class ActivarSuscripcionView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        tenant = request.user.profile.tenant
+        payment_intent_id = request.data.get('payment_intent_id')
+        
+        print(f"--- ACTIVANDO SUSCRIPCIÓN PARA {tenant.nombre_taller} ---")
+        print(f"Payment Intent ID: {payment_intent_id}")
+        
+        # Validación del plan
+        nuevo_plan = request.data.get('plan', 'BASIC')
+        planes_validos = ['FREE', 'BASIC', 'PRO', 'ENTERPRISE']
+        
+        if nuevo_plan not in planes_validos:
+            nuevo_plan = 'BASIC'
+
+        try:
+            # Si hay payment_intent, verificar que el pago fue exitoso
+            if payment_intent_id:
+                stripe.api_key = settings.STRIPE_SECRET_KEY
+                payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+                
+                if payment_intent.status != 'succeeded':
+                    return Response({
+                        'error': 'El pago no se completó correctamente'
+                    }, status=400)
+                
+                # Obtener el payment_method y asociarlo a la suscripción
+                payment_method = payment_intent.payment_method
+                if payment_method and tenant.stripe_subscription_id:
+                    print(f"💳 Actualizando método de pago de la suscripción...")
+                    stripe.Subscription.modify(
+                        tenant.stripe_subscription_id,
+                        default_payment_method=payment_method
+                    )
+                    print(f"✅ Método de pago actualizado")
+
+            # Actualizar estado y plan del tenant
+            tenant.suscripcion_activa = True
+            tenant.plan = nuevo_plan
+            
+            fecha_hoy = timezone.now()
+            tenant.fecha_inicio_suscripcion = fecha_hoy
+            tenant.fecha_fin_suscripcion = fecha_hoy + timedelta(days=30)
+            
+            tenant.save()
+            print(f"✅ Tenant actualizado: {nuevo_plan} hasta {tenant.fecha_fin_suscripcion}")
+            
+            # Registrar el pago en el historial
+            if payment_intent_id:
+                # Determinar el monto según el plan
+                montos = {
+                    'BASIC': 300,
+                    'PRO': 600,
+                    'ENTERPRISE': 1000
+                }
+                monto = montos.get(nuevo_plan, 0)
+                
+                HistorialPagoSuscripcion.objects.create(
+                    tenant=tenant,
+                    plan=nuevo_plan,
+                    monto=monto,
+                    stripe_checkout_session_id=payment_intent_id,
+                    periodo_inicio=fecha_hoy,
+                    periodo_fin=fecha_hoy + timedelta(days=30)
+                )
+                print(f"✅ Pago registrado en historial")
+            
+            return Response({
+                'status': 'success', 
+                'message': f'Taller activado con el plan {nuevo_plan}. Vence el: {tenant.fecha_fin_suscripcion.strftime("%d/%m/%Y")}'
+            })
+            
+        except Exception as e:
+            print(f"🔴 ERROR activando suscripción: {e}")
+            traceback.print_exc()
+            return Response({'error': str(e)}, status=500)

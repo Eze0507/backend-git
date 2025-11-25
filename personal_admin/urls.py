@@ -31,7 +31,9 @@ from .views import (
     MarcarAsistenciaView,
     MiAsistenciaView,
     MiHistorialAsistenciaView,
-    DiagnosticoAsistenciasView
+    DiagnosticoAsistenciasView,
+    CreateEmbeddedSubscription,
+    ActivarSuscripcionView
 )
 
 app_name = 'personal_admin'  # ← añadido para evitar conflictos de nombres
@@ -76,6 +78,8 @@ urlpatterns = [
     path('asistencia/mi-historial/', MiHistorialAsistenciaView.as_view(), name='mi-historial-asistencia'),
     path('asistencia/reporte-mensual/', AsistenciaReporteMensualView.as_view(), name='asistencia-reporte-mensual'),
     path('asistencia/diagnostico/', DiagnosticoAsistenciasView.as_view(), name='diagnostico-asistencias'),
+    path('crear-suscripcion-embedded/', CreateEmbeddedSubscription.as_view(), name='create-subscription-session'),
+    path('activar-suscripcion/', ActivarSuscripcionView.as_view(), name='activar-suscripcion'),
 ]
 
 

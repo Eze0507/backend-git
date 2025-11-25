@@ -4,6 +4,9 @@ from rest_framework import serializers
 from django.contrib.auth.models import User, Group
 from django.db import transaction
 from personal_admin.models_saas import Tenant, UserProfile # Asegúrate de importar tus modelos
+import stripe
+from django.utils import timezone
+from datetime import timedelta
 
 class TallerRegistrationSerializer(serializers.ModelSerializer):
     """
@@ -51,18 +54,38 @@ class TallerRegistrationSerializer(serializers.ModelSerializer):
             password=validated_data['password']
         )
         
+        fecha_hoy = timezone.now()
+        fecha_vencimiento = fecha_hoy + timedelta(days=14)
+        
         # 3. Creamos el Tenant (el taller) y lo vinculamos
         nuevo_taller = Tenant.objects.create(
             nombre_taller=nombre_taller,
-            propietario=user_propietario # Asignamos el "título de propiedad"
+            propietario=user_propietario, # Asignamos el "título de propiedad"
+            plan='FREE',
+            suscripcion_activa=True, # ¡Empieza activo!
+            fecha_inicio_suscripcion=fecha_hoy,
+            fecha_fin_suscripcion=fecha_vencimiento
         )
         
         # 4. Creamos el UserProfile (la "llave" del propietario)
         #    (Esto reemplaza la lógica del signal, que quitamos)
         UserProfile.objects.create(
             usuario=user_propietario,
-            tenant=nuevo_taller
+            tenant=nuevo_taller,
         )
+        
+        try:
+            customer = stripe.Customer.create(
+                email=user_propietario.email,
+                name=nombre_taller,
+                metadata={'tenant_id': nuevo_taller.id}
+            )
+            # Guardamos el ID de Stripe en nuestra BD
+            nuevo_taller.stripe_customer_id = customer.id
+            nuevo_taller.save()
+        except Exception as e:
+            # (Manejar error de conexión, tal vez loguearlo)
+            print(f"Error creando customer en Stripe: {e}")
         
         # 5. (Opcional) Asignar al grupo 'administrador'
         try:
