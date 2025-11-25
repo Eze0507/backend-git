@@ -758,7 +758,24 @@ class TenantProfileView(RetrieveUpdateAPIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def get_object(self):
-        return self.request.user.profile.tenant
+        """
+        Obtiene el tenant (taller) asociado al usuario autenticado.
+        - Si es admin/empleado: obtiene desde user.profile.tenant
+        - Si es cliente: obtiene desde cliente.tenant
+        """
+        user = self.request.user
+        
+        # Verificar si el usuario es un cliente
+        if hasattr(user, 'cliente'):
+            return user.cliente.tenant
+        
+        # Si no es cliente, obtener tenant desde profile (admin/empleado)
+        if hasattr(user, 'profile'):
+            return user.profile.tenant
+        
+        # Si no tiene ni cliente ni profile, retornar None
+        from rest_framework.exceptions import NotFound
+        raise NotFound("No se encontró información del taller para este usuario")
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         data = request.data.copy()
