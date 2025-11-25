@@ -35,12 +35,15 @@ class VehiculoListSerializer(serializers.ModelSerializer):
     marca_nombre = serializers.SerializerMethodField()
     modelo_nombre = serializers.SerializerMethodField()
     cliente = serializers.PrimaryKeyRelatedField(read_only=True)  # Agregar ID del cliente para filtrado
+    estado_en_taller = serializers.SerializerMethodField()
+    orden_activa = serializers.SerializerMethodField()
     
     class Meta:
         model = Vehiculo
         fields = [
             'id', 'cliente', 'cliente_nombre', 'marca_nombre', 'modelo_nombre', 
-            'numero_placa', 'color', 'año', 'fecha_registro'
+            'numero_placa', 'color', 'año', 'tipo', 'version', 'tipo_combustible', 
+            'vin', 'fecha_registro', 'estado_en_taller', 'orden_activa'
         ]
     
     def get_cliente_nombre(self, obj):
@@ -53,6 +56,45 @@ class VehiculoListSerializer(serializers.ModelSerializer):
     
     def get_modelo_nombre(self, obj):
         return obj.modelo.nombre if obj.modelo else "Sin modelo"
+    
+    def get_estado_en_taller(self, obj):
+        """Obtiene el estado de la orden activa más reciente del vehículo"""
+        # Buscar órdenes activas (no entregadas ni canceladas)
+        orden_activa = obj.ordenes.filter(
+            estado__in=['pendiente', 'en_proceso', 'finalizada']
+        ).order_by('-fecha_creacion').first()
+        
+        if orden_activa:
+            return {
+                'estado': orden_activa.estado,
+                'estado_display': orden_activa.get_estado_display(),
+                'fecha_creacion': orden_activa.fecha_creacion,
+                'tiene_orden_activa': True
+            }
+        return {
+            'estado': None,
+            'estado_display': 'Fuera del taller',
+            'fecha_creacion': None,
+            'tiene_orden_activa': False
+        }
+    
+    def get_orden_activa(self, obj):
+        """Obtiene el ID de la orden activa si existe"""
+        orden_activa = obj.ordenes.filter(
+            estado__in=['pendiente', 'en_proceso', 'finalizada']
+        ).order_by('-fecha_creacion').first()
+        
+        if orden_activa:
+            return {
+                'id': orden_activa.id,
+                'numero_orden': orden_activa.id,  # Agregar número de orden
+                'estado': orden_activa.estado,  # Agregar estado
+                'fallo_requerimiento': orden_activa.fallo_requerimiento,
+                'descripcion': orden_activa.fallo_requerimiento,  # Alias para compatibilidad
+                'fecha_inicio': orden_activa.fecha_inicio,
+                'fecha_finalizacion': orden_activa.fecha_finalizacion
+            }
+        return None
 
 
 class VehiculoDetailSerializer(serializers.ModelSerializer):

@@ -1,16 +1,19 @@
 from django.shortcuts import render
+from django.http import JsonResponse
 from rest_framework import viewsets, status,filters, permissions,generics
+from rest_framework.decorators import action
 from .serializers.serializers_user import UserSerializer, GroupAuxSerializer
 from django.db.models import ProtectedError
 from .serializers.serializers_register import UserRegistrationSerializer
 from django.contrib.auth.models import User, Group, Permission
-from .models import Cargo, Bitacora
+from .models import Cargo, Bitacora, Asistencia
 from .serializers.serializers_cargo import CargoSerializer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from .serializers.serializers_rol import RoleSerializer, PermissionSerializer 
 from rest_framework.permissions import IsAuthenticated, AllowAny 
 from personal_admin.models import Empleado
@@ -36,6 +39,13 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 import requests
 from django.conf import settings
+from django.db.models import Sum, Count, Q, DecimalField
+from django.db.models.functions import TruncMonth, TruncDay
+from datetime import datetime, timedelta, date
+import calendar
+from decimal import Decimal
+from django.utils import timezone
+import pytz
 
 # ===== FUNCIÓN HELPER PARA REGISTRAR EN BITÁCORA =====
 def registrar_bitacora(usuario, accion, modulo, descripcion, request=None):
@@ -800,3 +810,1014 @@ class ClienteRegistrationView(APIView):
             )
             
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ===== DASHBOARD ENDPOINTS =====
+class DashboardAdminView(APIView):
+    """
+    Vista para obtener estadísticas del dashboard para administradores.
+    Incluye datos generales del taller: ingresos, órdenes, clientes, empleados, servicios.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        user_tenant = user.profile.tenant
+        
+        # Verificar que sea administrador
+        is_admin = user.groups.filter(name='administrador').exists()
+        if not is_admin:
+            return Response(
+                {"error": "No tiene permisos para acceder a esta vista"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Importar modelos necesarios
+        from operaciones_inventario.modelsOrdenTrabajo import OrdenTrabajo
+        from finanzas_facturacion.models import Pago
+        from clientes_servicios.models import Cita
+        from operaciones_inventario.modelsItem import Item
+        
+        # Estadísticas generales
+        total_clientes = Cliente.objects.filter(tenant=user_tenant, activo=True).count()
+        total_empleados = Empleado.objects.filter(tenant=user_tenant, estado=True).count()
+        total_ordenes = OrdenTrabajo.objects.filter(tenant=user_tenant).count()
+        
+        # Ingresos
+        pagos_completados = Pago.objects.filter(
+            orden_trabajo__tenant=user_tenant,
+            estado='completado'
+        )
+        ingresos_totales = pagos_completados.aggregate(
+            total=Sum('monto', output_field=DecimalField())
+        )['total'] or Decimal('0.00')
+        
+        # Obtener fecha actual con zona horaria de Bolivia (America/La_Paz)
+        tz_bolivia = pytz.timezone('America/La_Paz')
+        ahora_utc = timezone.now()
+        ahora_bolivia = ahora_utc.astimezone(tz_bolivia)
+        
+        # Ingresos del mes actual (en Bolivia)
+        mes_actual_bolivia = ahora_bolivia.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        ingresos_mes = Pago.objects.filter(
+            orden_trabajo__tenant=user_tenant,
+            estado='completado',
+            fecha_pago__gte=mes_actual_bolivia
+        ).aggregate(
+            total=Sum('monto', output_field=DecimalField())
+        )['total'] or Decimal('0.00')
+        
+        # Ingresos últimos 6 meses para gráfico (usando fecha de Bolivia)
+        # Calcular los últimos 6 meses desde la fecha actual de Bolivia
+        ingresos_por_mes = Pago.objects.filter(
+            orden_trabajo__tenant=user_tenant,
+            estado='completado'
+        ).annotate(
+            mes=TruncMonth('fecha_pago')
+        ).values('mes').annotate(
+            total=Sum('monto', output_field=DecimalField())
+        ).order_by('mes')
+        
+        # Convertir a diccionario para facilitar búsqueda
+        ingresos_dict = {}
+        for item in ingresos_por_mes:
+            if item['mes']:
+                mes_str = item['mes'].strftime('%Y-%m')
+                ingresos_dict[mes_str] = float(item['total'] or 0)
+        
+        # Generar datos para los últimos 6 meses (desde la fecha actual de Bolivia)
+        ingresos_mensuales = []
+        fecha_actual_bolivia = ahora_bolivia.date()
+        año_actual = fecha_actual_bolivia.year
+        mes_actual = fecha_actual_bolivia.month
+        
+        # Calcular los últimos 6 meses correctamente (incluyendo el mes actual)
+        # Desde hace 5 meses hasta el mes actual (total 6 meses)
+        for i in range(5, -1, -1):  # i va de 5 a 0
+            # Calcular el mes objetivo: mes_actual - i
+            # Si mes_actual = 11 (noviembre) y i = 0, entonces mes_objetivo = 11 (noviembre) ✓
+            # Si mes_actual = 11 y i = 1, entonces mes_objetivo = 10 (octubre) ✓
+            mes_objetivo = mes_actual - i
+            año_objetivo = año_actual
+            
+            # Ajustar si el mes es negativo o cero (cambio de año hacia atrás)
+            if mes_objetivo <= 0:
+                mes_objetivo += 12
+                año_objetivo -= 1
+            
+            mes_str = f"{año_objetivo}-{mes_objetivo:02d}"
+            ingresos_mensuales.append({
+                'mes': mes_str,
+                'total': ingresos_dict.get(mes_str, 0.0)
+            })
+        
+        # Órdenes por estado
+        ordenes_por_estado = OrdenTrabajo.objects.filter(
+            tenant=user_tenant
+        ).values('estado').annotate(
+            cantidad=Count('id')
+        )
+        
+        estados_ordenes = {item['estado']: item['cantidad'] for item in ordenes_por_estado}
+        
+        # Servicios más utilizados (items más usados en órdenes)
+        servicios_mas_usados = Item.objects.filter(
+            detalles_orden__orden_trabajo__tenant=user_tenant,
+            detalles_orden__orden_trabajo__estado__in=['finalizada', 'entregada']
+        ).annotate(
+            veces_usado=Count('detalles_orden')
+        ).order_by('-veces_usado')[:5]
+        
+        servicios_data = [
+            {
+                'nombre': servicio.nombre,
+                'nombre_corto': servicio.nombre[:30] + '...' if len(servicio.nombre) > 30 else servicio.nombre,
+                'veces_usado': servicio.veces_usado
+            }
+            for servicio in servicios_mas_usados
+        ]
+        
+        # Órdenes recientes (últimas 5)
+        ordenes_recientes = OrdenTrabajo.objects.filter(
+            tenant=user_tenant
+        ).select_related('cliente', 'vehiculo').order_by('-fecha_creacion')[:5]
+        
+        ordenes_recientes_data = [
+            {
+                'id': orden.id,
+                'cliente': f"{orden.cliente.nombre} {orden.cliente.apellido}".strip(),
+                'estado': orden.estado,
+                'total': float(orden.total),
+                'fecha': orden.fecha_creacion.strftime('%Y-%m-%d') if orden.fecha_creacion else ''
+            }
+            for orden in ordenes_recientes
+        ]
+        
+        # Citas pendientes
+        citas_pendientes = Cita.objects.filter(
+            tenant=user_tenant,
+            estado__in=['pendiente', 'confirmada']
+        ).count()
+        
+        return Response({
+            'estadisticas': {
+                'total_clientes': total_clientes,
+                'total_empleados': total_empleados,
+                'total_ordenes': total_ordenes,
+                'ingresos_totales': float(ingresos_totales),
+                'ingresos_mes_actual': float(ingresos_mes),
+                'citas_pendientes': citas_pendientes
+            },
+            'graficos': {
+                'ingresos_mensuales': ingresos_mensuales,
+                'ordenes_por_estado': estados_ordenes,
+                'servicios_mas_usados': servicios_data
+            },
+            'ordenes_recientes': ordenes_recientes_data
+        }, status=status.HTTP_200_OK)
+
+
+class DashboardEmpleadoView(APIView):
+    """
+    Vista para obtener estadísticas del dashboard para empleados.
+    Muestra información relevante para el empleado: sus citas, órdenes asignadas, etc.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        user_tenant = user.profile.tenant
+        
+        # Verificar que sea empleado
+        is_empleado = user.groups.filter(name='empleado').exists()
+        if not is_empleado:
+            return Response(
+                {"error": "No tiene permisos para acceder a esta vista"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Obtener el empleado asociado al usuario
+        try:
+            empleado = Empleado.objects.get(usuario=user, tenant=user_tenant)
+        except Empleado.DoesNotExist:
+            return Response(
+                {"error": "No se encontró perfil de empleado"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Importar modelos necesarios
+        from clientes_servicios.models import Cita
+        from operaciones_inventario.modelsOrdenTrabajo import OrdenTrabajo, AsignacionTecnico
+        
+        # Obtener fecha actual con zona horaria de Bolivia (America/La_Paz)
+        tz_bolivia = pytz.timezone('America/La_Paz')
+        ahora_utc = timezone.now()
+        ahora_bolivia = ahora_utc.astimezone(tz_bolivia)
+        hoy_date = ahora_bolivia.date()
+        
+        # Inicio y fin del día en Bolivia
+        hoy_inicio = tz_bolivia.localize(datetime.combine(hoy_date, datetime.min.time()))
+        hoy_fin = tz_bolivia.localize(datetime.combine(hoy_date, datetime.max.time()))
+        
+        # ===== CITAS =====
+        # Todas las citas del empleado (sin filtro de estado para mostrar todas)
+        todas_las_citas = Cita.objects.filter(
+            empleado=empleado,
+            tenant=user_tenant
+        ).select_related('cliente', 'vehiculo').order_by('fecha_hora_inicio')
+        
+        # Total de citas del empleado
+        total_citas = todas_las_citas.count()
+        
+        # Citas de hoy - usar rango de fechas en zona horaria de Bolivia
+        citas_hoy_queryset = todas_las_citas.filter(
+            fecha_hora_inicio__gte=hoy_inicio,
+            fecha_hora_inicio__lte=hoy_fin
+        )
+        
+        citas_hoy = citas_hoy_queryset.count()
+        
+        # Datos de citas de hoy
+        citas_hoy_data = [
+            {
+                'id': cita.id,
+                'cliente': f"{cita.cliente.nombre} {cita.cliente.apellido}".strip(),
+                'tipo': cita.get_tipo_cita_display(),
+                'fecha_hora': cita.fecha_hora_inicio.isoformat() if cita.fecha_hora_inicio else '',
+                'estado': cita.estado
+            }
+            for cita in citas_hoy_queryset
+        ]
+        
+        # Citas de la semana (desde el inicio de la semana hasta el fin)
+        inicio_semana = hoy_date - timedelta(days=hoy_date.weekday())
+        fin_semana = inicio_semana + timedelta(days=6)
+        inicio_semana_datetime = tz_bolivia.localize(datetime.combine(inicio_semana, datetime.min.time()))
+        fin_semana_datetime = tz_bolivia.localize(datetime.combine(fin_semana, datetime.max.time()))
+        
+        citas_semana = todas_las_citas.filter(
+            fecha_hora_inicio__gte=inicio_semana_datetime,
+            fecha_hora_inicio__lte=fin_semana_datetime
+        ).count()
+        
+        # Próximas citas (las próximas 5 citas después de ahora en Bolivia)
+        proximas_citas = todas_las_citas.filter(
+            fecha_hora_inicio__gte=ahora_bolivia
+        ).order_by('fecha_hora_inicio')[:5]
+        
+        proximas_citas_data = [
+            {
+                'id': cita.id,
+                'cliente': f"{cita.cliente.nombre} {cita.cliente.apellido}".strip(),
+                'tipo': cita.get_tipo_cita_display(),
+                'fecha_hora': cita.fecha_hora_inicio.isoformat() if cita.fecha_hora_inicio else '',
+                'estado': cita.estado
+            }
+            for cita in proximas_citas
+        ]
+        
+        # ===== ÓRDENES =====
+        # Mostrar TODAS las órdenes del taller (no solo las asignadas al empleado)
+        ordenes_asignadas_queryset = OrdenTrabajo.objects.filter(
+            tenant=user_tenant
+        ).select_related('cliente', 'vehiculo').prefetch_related('asignaciones_tecnicos')
+        
+        # Total de órdenes del taller
+        total_ordenes = ordenes_asignadas_queryset.count()
+        
+        # Órdenes por estado
+        ordenes_en_proceso = ordenes_asignadas_queryset.filter(estado='en_proceso').count()
+        ordenes_pendientes = ordenes_asignadas_queryset.filter(estado='pendiente').count()
+        ordenes_finalizadas = ordenes_asignadas_queryset.filter(estado='finalizada').count()
+        ordenes_entregadas = ordenes_asignadas_queryset.filter(estado='entregada').count()
+        
+        # Órdenes recientes (últimas 10, ordenadas por fecha de creación descendente)
+        ordenes_recientes = ordenes_asignadas_queryset.order_by('-fecha_creacion')[:10]
+        
+        ordenes_recientes_data = [
+            {
+                'id': orden.id,
+                'cliente': f"{orden.cliente.nombre} {orden.cliente.apellido}".strip(),
+                'estado': orden.estado,
+                'fecha': orden.fecha_creacion.strftime('%Y-%m-%d') if orden.fecha_creacion else '',
+                'total': float(orden.total) if orden.total else 0.0
+            }
+            for orden in ordenes_recientes
+        ]
+        
+        return Response({
+            'estadisticas': {
+                'citas_hoy': citas_hoy,
+                'citas_semana': citas_semana,
+                'total_citas': total_citas,
+                'total_ordenes': total_ordenes,
+                'ordenes_en_proceso': ordenes_en_proceso,
+                'ordenes_pendientes': ordenes_pendientes,
+                'ordenes_finalizadas': ordenes_finalizadas,
+                'ordenes_entregadas': ordenes_entregadas
+            },
+            'citas_hoy': citas_hoy_data,
+            'proximas_citas': proximas_citas_data,
+            'ordenes_recientes': ordenes_recientes_data
+        }, status=status.HTTP_200_OK)
+
+
+# ===== ASISTENCIA ENDPOINTS =====
+from .serializers.serializers_asistencia import (
+    AsistenciaReadSerializer, 
+    AsistenciaWriteSerializer, 
+    AsistenciaMarcarSerializer
+)
+
+class AsistenciaViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestionar asistencias.
+    - Administradores: Ven todas las asistencias
+    - Empleados: Pueden marcar su propia asistencia
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = AsistenciaReadSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        try:
+            user_tenant = user.profile.tenant
+        except AttributeError:
+            return Asistencia.objects.none()
+        
+        # Verificar que sea administrador
+        is_admin = user.groups.filter(name='administrador').exists()
+        if not is_admin:
+            return Asistencia.objects.none()
+        
+        # CRÍTICO: Filtrar SOLO por tenant del admin - así aparecen todas las asistencias marcadas por empleados
+        queryset = Asistencia.objects.filter(tenant=user_tenant).select_related('empleado', 'tenant')
+        
+        # Log para verificar
+        import logging
+        logger = logging.getLogger(__name__)
+        total_asistencias = queryset.count()
+        logger.info(f"[ASISTENCIAS VIEWSET] Admin: {user.username}, Tenant: {user_tenant.id}, Total asistencias en tenant: {total_asistencias}")
+        
+        # Filtros opcionales
+        fecha = self.request.query_params.get('fecha', None)
+        empleado_id = self.request.query_params.get('empleado_id', None)
+        estado = self.request.query_params.get('estado', None)
+        
+        # Si se especifica fecha, filtrar por esa fecha
+        # Si NO se especifica fecha, mostrar todas las asistencias del tenant
+        if fecha:
+            try:
+                # Intentar parsear la fecha
+                fecha_obj = datetime.strptime(fecha, '%Y-%m-%d').date()
+                queryset = queryset.filter(fecha=fecha_obj)
+            except (ValueError, TypeError):
+                # Si la fecha es inválida, ignorar el filtro
+                pass
+        
+        if empleado_id:
+            try:
+                queryset = queryset.filter(empleado_id=int(empleado_id))
+            except (ValueError, TypeError):
+                pass
+        
+        if estado:
+            queryset = queryset.filter(estado=estado)
+        
+        # Ordenar por fecha descendente (más recientes primero), luego por fecha_creacion descendente (últimas marcadas arriba - pila LIFO), y luego por empleado
+        # Esto hace que cuando un empleado marca asistencia, aparezca arriba de las anteriores del mismo día
+        return queryset.order_by('-fecha', '-fecha_creacion', '-fecha_actualizacion', 'empleado__apellido', 'empleado__nombre')
+    
+    def list(self, request, *args, **kwargs):
+        """
+        Lista personalizada para debug y mejor manejo de asistencias.
+        """
+        user = request.user
+        user_tenant = None
+        try:
+            user_tenant = user.profile.tenant
+        except AttributeError:
+            return Response({"error": "Usuario no tiene perfil asociado"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # DEBUG: Imprimir información útil
+        import logging
+        logger = logging.getLogger(__name__)
+        total_en_tenant = Asistencia.objects.filter(tenant=user_tenant).count()
+        total_sin_tenant = Asistencia.objects.filter(tenant__isnull=True).count()
+        total_en_queryset = queryset.count()
+        
+        logger.info(f"[ASISTENCIAS] Admin: {user.username}, Tenant: {user_tenant.id if user_tenant else 'None'}")
+        logger.info(f"[ASISTENCIAS] Total en tenant: {total_en_tenant}, Sin tenant: {total_sin_tenant}, En queryset filtrado: {total_en_queryset}")
+        
+        # Si no hay resultados, devolver información útil pero SIEMPRE con formato correcto
+        if not queryset.exists():
+            logger.warning(f"[ASISTENCIAS VIEWSET] ⚠️ No hay asistencias - Total en tenant: {total_en_tenant}, Sin tenant: {total_sin_tenant}")
+            return Response({
+                "count": 0,
+                "results": [],
+                "debug_info": {
+                    "total_asistencias_en_tenant": total_en_tenant,
+                    "total_asistencias_sin_tenant": total_sin_tenant,
+                    "tenant_id": user_tenant.id if user_tenant else None,
+                    "filtros_aplicados": {
+                        "fecha": request.query_params.get('fecha', None),
+                        "empleado_id": request.query_params.get('empleado_id', None),
+                        "estado": request.query_params.get('estado', None),
+                    },
+                    "mensaje": "No hay asistencias registradas para los filtros seleccionados"
+                }
+            }, status=status.HTTP_200_OK)
+        
+        # Serializar los datos
+        serializer = self.get_serializer(queryset, many=True)
+        data = serializer.data
+        
+        logger.info(f"[ASISTENCIAS VIEWSET] Serializando {len(data)} asistencias")
+        
+        # Si hay paginación, usar la respuesta paginada
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            response = self.get_paginated_response(serializer.data)
+            logger.info(f"[ASISTENCIAS VIEWSET] Respuesta paginada: {len(serializer.data)} items")
+            return response
+        
+        # Si no hay paginación, devolver como objeto con results (compatible con frontend)
+        # El queryset ya está ordenado por fecha y fecha_creacion descendente (pila LIFO)
+        logger.info(f"[ASISTENCIAS VIEWSET] ✅ Respuesta sin paginación: {len(data)} items")
+        logger.info(f"[ASISTENCIAS VIEWSET] Primeras 3 asistencias: {[{'id': d.get('id'), 'empleado': d.get('nombre_empleado'), 'fecha': d.get('fecha'), 'fecha_creacion': d.get('fecha_creacion')} for d in data[:3]]}")
+        return Response({
+            "count": len(data),
+            "results": data
+        }, status=status.HTTP_200_OK)
+    
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return AsistenciaWriteSerializer
+        return AsistenciaReadSerializer
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        try:
+            context['tenant'] = self.request.user.profile.tenant
+        except AttributeError:
+            context['tenant'] = None
+        return context
+    
+    
+    
+    def perform_create(self, serializer):
+        try:
+            user_tenant = self.request.user.profile.tenant
+        except AttributeError:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({"error": "Usuario no tiene perfil asociado. Contacte al administrador."})
+        serializer.save(tenant=user_tenant)
+        registrar_bitacora(
+            self.request.user,
+            Bitacora.Accion.CREAR,
+            Bitacora.Modulo.ASISTENCIA,
+            f"Asistencia creada para {serializer.instance.empleado} el {serializer.instance.fecha}",
+            self.request
+        )
+    
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        registrar_bitacora(
+            self.request.user,
+            Bitacora.Accion.EDITAR,
+            Bitacora.Modulo.ASISTENCIA,
+            f"Asistencia actualizada para {instance.empleado} el {instance.fecha}",
+            self.request
+        )
+
+
+# Vista separada para marcar asistencia con csrf_exempt
+@method_decorator(csrf_exempt, name='dispatch')
+class MarcarAsistenciaView(APIView):
+    """
+    Vista para que cualquier usuario autenticado marque entrada o salida.
+    Usa csrf_exempt para evitar problemas con CSRF en aplicaciones móviles.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        user = request.user
+        
+        # Log inicial
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[MARCAR ASISTENCIA] Inicio - Usuario: {user.username}")
+        
+        # Obtener tenant
+        try:
+            user_tenant = user.profile.tenant
+            logger.info(f"[MARCAR ASISTENCIA] Tenant obtenido: {user_tenant.id}")
+        except AttributeError as e:
+            logger.error(f"[MARCAR ASISTENCIA] Error obteniendo tenant: {e}")
+            return Response(
+                {"error": "Usuario no tiene perfil asociado. Contacte al administrador."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Obtener tipo
+        tipo = request.data.get('tipo', '').lower()
+        if tipo not in ['entrada', 'salida']:
+            return Response({"error": "tipo debe ser 'entrada' o 'salida'"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Buscar empleado
+        empleado = None
+        try:
+            empleado = Empleado.objects.get(usuario=user, estado=True, tenant=user_tenant)
+            logger.info(f"[MARCAR ASISTENCIA] Empleado encontrado: {empleado.id}")
+        except Empleado.DoesNotExist:
+            # Intentar buscar sin tenant y actualizar
+            try:
+                empleado = Empleado.objects.get(usuario=user, estado=True)
+                empleado.tenant = user_tenant
+                empleado.save()
+                logger.info(f"[MARCAR ASISTENCIA] Empleado actualizado con tenant: {empleado.id}")
+            except Empleado.DoesNotExist:
+                # Crear empleado automáticamente
+                logger.warning(f"[MARCAR ASISTENCIA] Creando empleado automático para {user.username}")
+                from .models import Cargo
+                cargo = Cargo.objects.filter(tenant=user_tenant).first()
+                if not cargo:
+                    cargo = Cargo.objects.create(
+                        nombre="Empleado",
+                        descripcion="Cargo por defecto",
+                        sueldo=0.00,
+                        tenant=user_tenant
+                    )
+                
+                empleado = Empleado.objects.create(
+                    usuario=user,
+                    tenant=user_tenant,
+                    cargo=cargo,
+                    nombre=user.first_name or user.username,
+                    apellido=user.last_name or "",
+                    ci=user.username,
+                    sueldo=0.00,
+                    estado=True
+                )
+                logger.info(f"[MARCAR ASISTENCIA] Empleado creado: {empleado.id}")
+        
+        # Fecha y hora actual en zona horaria de Bolivia
+        tz_bolivia = pytz.timezone('America/La_Paz')
+        ahora = datetime.now(tz_bolivia)
+        fecha = ahora.date()
+        hora = ahora.time()
+        
+        logger.info(f"[MARCAR ASISTENCIA] Fecha: {fecha}, Hora: {hora}, Tipo: {tipo}")
+        
+        # Validar que sea día laboral (lunes a viernes)
+        dia_semana = ahora.weekday()  # 0 = lunes, 6 = domingo
+        if dia_semana >= 5:  # 5 = sábado, 6 = domingo
+            dia_nombre = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'][dia_semana]
+            return Response({
+                "error": f"No se puede marcar asistencia los fines de semana. Hoy es {dia_nombre}."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # MARCAR ENTRADA
+        if tipo == 'entrada':
+            # ✅ CORREGIDO: tenant NO debe estar en defaults, solo en criterios de búsqueda
+            asistencia, created = Asistencia.objects.update_or_create(
+                empleado=empleado,
+                fecha=fecha,
+                tenant=user_tenant,
+                defaults={
+                    'hora_entrada': hora
+                }
+            )
+            
+            # Log de verificación
+            logger.info(f"[MARCAR ASISTENCIA] ✅ Entrada guardada - ID: {asistencia.id}, Created: {created}, Tenant: {asistencia.tenant.id}, Empleado: {empleado.id}")
+            
+            # Verificar que se guardó correctamente
+            asistencia.refresh_from_db()
+            if not asistencia.tenant:
+                logger.error(f"[MARCAR ASISTENCIA] ❌ ERROR: Asistencia {asistencia.id} NO tiene tenant después de guardar")
+                # Intentar guardar manualmente
+                asistencia.tenant = user_tenant
+                asistencia.save(update_fields=['tenant'])
+                asistencia.refresh_from_db()
+                logger.info(f"[MARCAR ASISTENCIA] Tenant forzado manualmente: {asistencia.tenant.id if asistencia.tenant else 'SIGUE SIN TENANT'}")
+            
+            return Response({
+                "success": True,
+                "mensaje": "Entrada marcada correctamente",
+                "fecha": fecha.isoformat(),
+                "hora_entrada": asistencia.hora_entrada.strftime('%H:%M:%S') if asistencia.hora_entrada else None,
+                "hora_salida": asistencia.hora_salida.strftime('%H:%M:%S') if asistencia.hora_salida else None,
+                "estado": asistencia.estado,
+                "empleado": f"{empleado.nombre} {empleado.apellido}",
+                "empleado_id": empleado.id,
+                "asistencia_id": asistencia.id
+            }, status=status.HTTP_200_OK)
+        
+        # MARCAR SALIDA
+        try:
+            asistencia = Asistencia.objects.get(
+                empleado=empleado,
+                fecha=fecha,
+                tenant=user_tenant
+            )
+        except Asistencia.DoesNotExist:
+            logger.warning(f"[MARCAR ASISTENCIA] No se encontró entrada previa para empleado {empleado.id} en fecha {fecha}")
+            return Response({"error": "Debe marcar entrada primero"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Guardar hora de salida
+        asistencia.hora_salida = hora
+        asistencia.save()  # El modelo calcula automáticamente horas_extras, horas_faltantes y estado
+        
+        # Log de verificación
+        logger.info(f"[MARCAR ASISTENCIA] ✅ Salida guardada - ID: {asistencia.id}, Tenant: {asistencia.tenant.id}, Estado: {asistencia.estado}")
+        
+        # Refrescar desde la BD
+        asistencia.refresh_from_db()
+        
+        # Calcular horas trabajadas totales
+        entrada_dt = datetime.combine(fecha, asistencia.hora_entrada)
+        salida_dt = datetime.combine(fecha, asistencia.hora_salida)
+        if salida_dt < entrada_dt:
+            salida_dt += timedelta(days=1)
+        diferencia = salida_dt - entrada_dt
+        horas_trabajadas = round(diferencia.total_seconds() / 3600.0, 2)
+        
+        return Response({
+            "success": True,
+            "mensaje": "Salida marcada correctamente",
+            "fecha": fecha.isoformat(),
+            "hora_entrada": asistencia.hora_entrada.strftime('%H:%M:%S') if asistencia.hora_entrada else None,
+            "hora_salida": hora.strftime('%H:%M:%S'),
+            "horas_trabajadas": horas_trabajadas,
+            "horas_extras": float(asistencia.horas_extras) if asistencia.horas_extras else 0.00,
+            "horas_faltantes": float(asistencia.horas_faltantes) if asistencia.horas_faltantes else 0.00,
+            "estado": asistencia.estado,
+            "empleado": f"{empleado.nombre} {empleado.apellido}",
+            "empleado_id": empleado.id,
+            "asistencia_id": asistencia.id
+        }, status=status.HTTP_200_OK)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class MiAsistenciaView(APIView):
+    """
+    Vista para que un empleado vea su propia asistencia del día actual.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        
+        # Obtener tenant
+        try:
+            user_tenant = user.profile.tenant
+        except AttributeError:
+            return Response(
+                {"error": "Usuario no tiene perfil asociado."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Buscar empleado
+        try:
+            empleado = Empleado.objects.get(usuario=user, estado=True, tenant=user_tenant)
+        except Empleado.DoesNotExist:
+            try:
+                empleado = Empleado.objects.get(usuario=user, estado=True)
+                empleado.tenant = user_tenant
+                empleado.save()
+            except Empleado.DoesNotExist:
+                return Response(
+                    {"error": "No se encontró perfil de empleado."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+        # Obtener fecha actual
+        tz_bolivia = pytz.timezone('America/La_Paz')
+        ahora = datetime.now(tz_bolivia)
+        fecha = ahora.date()
+        
+        # Buscar asistencia del día
+        try:
+            asistencia = Asistencia.objects.get(
+                empleado=empleado,
+                fecha=fecha,
+                tenant=user_tenant
+            )
+            
+            return Response({
+                "id": asistencia.id,
+                "fecha": asistencia.fecha.isoformat(),
+                "hora_entrada": asistencia.hora_entrada.strftime('%H:%M:%S') if asistencia.hora_entrada else None,
+                "hora_salida": asistencia.hora_salida.strftime('%H:%M:%S') if asistencia.hora_salida else None,
+                "horas_extras": str(asistencia.horas_extras) if asistencia.horas_extras else "0.00",
+                "horas_faltantes": str(asistencia.horas_faltantes) if asistencia.horas_faltantes else "0.00",
+                "estado": asistencia.estado,
+                "empleado": {
+                    "id": empleado.id,
+                    "nombre": empleado.nombre,
+                    "apellido": empleado.apellido
+                }
+            }, status=status.HTTP_200_OK)
+        except Asistencia.DoesNotExist:
+            return Response({
+                "id": None,
+                "fecha": fecha.isoformat(),
+                "hora_entrada": None,
+                "hora_salida": None,
+                "horas_extras": "0.00",
+                "horas_faltantes": "0.00",
+                "estado": "incompleto",
+                "empleado": {
+                    "id": empleado.id,
+                    "nombre": empleado.nombre,
+                    "apellido": empleado.apellido
+                }
+            }, status=status.HTTP_200_OK)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class DiagnosticoAsistenciasView(APIView):
+    """
+    Endpoint de diagnóstico para verificar el estado de las asistencias.
+    Solo para administradores.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        
+        # Verificar que sea administrador
+        is_admin = user.groups.filter(name='administrador').exists()
+        if not is_admin:
+            return Response(
+                {"error": "Solo administradores pueden acceder a este endpoint"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            user_tenant = user.profile.tenant
+        except AttributeError:
+            return Response(
+                {"error": "Usuario no tiene perfil asociado"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Estadísticas
+        total_asistencias = Asistencia.objects.count()
+        asistencias_en_tenant = Asistencia.objects.filter(tenant=user_tenant).count()
+        asistencias_sin_tenant = Asistencia.objects.filter(tenant__isnull=True).count()
+        asistencias_otros_tenants = Asistencia.objects.exclude(tenant=user_tenant).exclude(tenant__isnull=True).count()
+        
+        # Últimas 10 asistencias del tenant
+        ultimas_asistencias = Asistencia.objects.filter(tenant=user_tenant).select_related('empleado', 'tenant').order_by('-fecha', '-fecha_creacion')[:10]
+        
+        # Últimas 10 asistencias sin tenant (para verificar problemas)
+        ultimas_sin_tenant = Asistencia.objects.filter(tenant__isnull=True).select_related('empleado').order_by('-fecha', '-fecha_creacion')[:10]
+        
+        return Response({
+            "tenant_id": user_tenant.id,
+            "tenant_nombre": user_tenant.nombre if hasattr(user_tenant, 'nombre') else str(user_tenant),
+            "estadisticas": {
+                "total_asistencias": total_asistencias,
+                "asistencias_en_tenant": asistencias_en_tenant,
+                "asistencias_sin_tenant": asistencias_sin_tenant,
+                "asistencias_otros_tenants": asistencias_otros_tenants,
+            },
+            "ultimas_asistencias_tenant": [
+                {
+                    "id": a.id,
+                    "empleado": f"{a.empleado.nombre} {a.empleado.apellido}",
+                    "empleado_id": a.empleado.id,
+                    "fecha": a.fecha.isoformat(),
+                    "hora_entrada": a.hora_entrada.strftime('%H:%M:%S') if a.hora_entrada else None,
+                    "hora_salida": a.hora_salida.strftime('%H:%M:%S') if a.hora_salida else None,
+                    "tenant_id": a.tenant.id if a.tenant else None,
+                    "estado": a.estado,
+                }
+                for a in ultimas_asistencias
+            ],
+            "ultimas_sin_tenant": [
+                {
+                    "id": a.id,
+                    "empleado": f"{a.empleado.nombre} {a.empleado.apellido}",
+                    "empleado_id": a.empleado.id,
+                    "fecha": a.fecha.isoformat(),
+                    "hora_entrada": a.hora_entrada.strftime('%H:%M:%S') if a.hora_entrada else None,
+                    "hora_salida": a.hora_salida.strftime('%H:%M:%S') if a.hora_salida else None,
+                    "tenant_id": None,
+                    "estado": a.estado,
+                }
+                for a in ultimas_sin_tenant
+            ]
+        }, status=status.HTTP_200_OK)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class MiHistorialAsistenciaView(APIView):
+    """
+    Vista para que un empleado vea su historial de asistencias.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        
+        # Obtener tenant
+        try:
+            user_tenant = user.profile.tenant
+        except AttributeError:
+            return Response(
+                {"error": "Usuario no tiene perfil asociado."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Buscar empleado
+        try:
+            empleado = Empleado.objects.get(usuario=user, estado=True, tenant=user_tenant)
+        except Empleado.DoesNotExist:
+            try:
+                empleado = Empleado.objects.get(usuario=user, estado=True)
+                empleado.tenant = user_tenant
+                empleado.save()
+            except Empleado.DoesNotExist:
+                return Response(
+                    {"error": "No se encontró perfil de empleado."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+        # Obtener parámetros opcionales
+        fecha_desde = request.query_params.get('fecha_desde', None)
+        fecha_hasta = request.query_params.get('fecha_hasta', None)
+        limite = int(request.query_params.get('limite', 30))  # Por defecto 30 días
+        
+        # Construir queryset
+        queryset = Asistencia.objects.filter(
+            empleado=empleado,
+            tenant=user_tenant
+        ).order_by('-fecha')
+        
+        # Aplicar filtros de fecha
+        if fecha_desde:
+            try:
+                fecha_desde_obj = datetime.strptime(fecha_desde, '%Y-%m-%d').date()
+                queryset = queryset.filter(fecha__gte=fecha_desde_obj)
+            except ValueError:
+                pass
+        
+        if fecha_hasta:
+            try:
+                fecha_hasta_obj = datetime.strptime(fecha_hasta, '%Y-%m-%d').date()
+                queryset = queryset.filter(fecha__lte=fecha_hasta_obj)
+            except ValueError:
+                pass
+        
+        # Si no hay filtros de fecha, limitar a los últimos N días
+        if not fecha_desde and not fecha_hasta:
+            fecha_limite = datetime.now().date() - timedelta(days=limite)
+            queryset = queryset.filter(fecha__gte=fecha_limite)
+        
+        # Obtener asistencias
+        asistencias = queryset[:50]  # Máximo 50 registros
+        
+        # Serializar
+        data = []
+        for asistencia in asistencias:
+            data.append({
+                "id": asistencia.id,
+                "fecha": asistencia.fecha.isoformat(),
+                "hora_entrada": asistencia.hora_entrada.strftime('%H:%M:%S') if asistencia.hora_entrada else None,
+                "hora_salida": asistencia.hora_salida.strftime('%H:%M:%S') if asistencia.hora_salida else None,
+                "horas_extras": str(asistencia.horas_extras) if asistencia.horas_extras else "0.00",
+                "horas_faltantes": str(asistencia.horas_faltantes) if asistencia.horas_faltantes else "0.00",
+                "estado": asistencia.estado,
+                "fecha_creacion": asistencia.fecha_creacion.isoformat() if asistencia.fecha_creacion else None,
+            })
+        
+        return Response({
+            "success": True,
+            "count": len(data),
+            "data": data
+        }, status=status.HTTP_200_OK)
+
+
+class AsistenciaReporteMensualView(APIView):
+    """
+    Vista para generar reporte mensual de asistencias (solo para administradores).
+    Útil para pasar a nómina.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        user_tenant = user.profile.tenant
+        
+        # Verificar que sea administrador
+        is_admin = user.groups.filter(name='administrador').exists()
+        if not is_admin:
+            return Response(
+                {"error": "No tiene permisos para acceder a esta vista"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Obtener parámetros de fecha
+        año = request.query_params.get('año', None)
+        mes = request.query_params.get('mes', None)
+        
+        # Si no se proporcionan, usar el mes actual
+        if not año or not mes:
+            tz_bolivia = pytz.timezone('America/La_Paz')
+            ahora_bolivia = datetime.now(tz_bolivia)
+            año = ahora_bolivia.year
+            mes = ahora_bolivia.month
+        
+        try:
+            año = int(año)
+            mes = int(mes)
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "Año y mes deben ser números válidos"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Obtener todas las asistencias del mes
+        asistencias = Asistencia.objects.filter(
+            tenant=user_tenant,
+            fecha__year=año,
+            fecha__month=mes
+        ).select_related('empleado').order_by('empleado__apellido', 'empleado__nombre', 'fecha')
+
+        # Calcular días hábiles del mes (lunes a viernes)
+        dias_habiles_mes = 0
+        ultimo_dia = calendar.monthrange(año, mes)[1]
+        for dia in range(1, ultimo_dia + 1):
+            fecha_actual = date(año, mes, dia)
+            if fecha_actual.weekday() < 5:  # 0-4 = lunes a viernes
+                dias_habiles_mes += 1
+        
+        # Agrupar por empleado
+        reporte_por_empleado = {}
+        for asistencia in asistencias:
+            empleado_id = asistencia.empleado.id
+            if empleado_id not in reporte_por_empleado:
+                reporte_por_empleado[empleado_id] = {
+                    'empleado': {
+                        'id': asistencia.empleado.id,
+                        'nombre': asistencia.empleado.nombre,
+                        'apellido': asistencia.empleado.apellido,
+                        'ci': asistencia.empleado.ci
+                    },
+                    'asistencias': [],
+                    'total_horas_extras': Decimal('0.00'),
+                    'total_horas_faltantes': Decimal('0.00'),
+                    'dias_completos': 0,
+                    'dias_incompletos': 0,
+                    'dias_extras': 0
+                }
+            
+            reporte_por_empleado[empleado_id]['asistencias'].append({
+                'fecha': asistencia.fecha.isoformat(),
+                'hora_entrada': asistencia.hora_entrada.strftime('%H:%M:%S') if asistencia.hora_entrada else None,
+                'hora_salida': asistencia.hora_salida.strftime('%H:%M:%S') if asistencia.hora_salida else None,
+                'horas_extras': float(asistencia.horas_extras),
+                'horas_faltantes': float(asistencia.horas_faltantes),
+                'estado': asistencia.estado
+            })
+            
+            reporte_por_empleado[empleado_id]['total_horas_extras'] += asistencia.horas_extras
+            reporte_por_empleado[empleado_id]['total_horas_faltantes'] += asistencia.horas_faltantes
+            
+            if asistencia.estado == Asistencia.Estado.COMPLETO:
+                reporte_por_empleado[empleado_id]['dias_completos'] += 1
+            elif asistencia.estado == Asistencia.Estado.INCOMPLETO:
+                reporte_por_empleado[empleado_id]['dias_incompletos'] += 1
+            elif asistencia.estado == Asistencia.Estado.EXTRA:
+                reporte_por_empleado[empleado_id]['dias_extras'] += 1
+        
+        # Convertir a lista y formatear decimales
+        reporte = []
+        for datos in reporte_por_empleado.values():
+            datos['total_horas_extras'] = float(datos['total_horas_extras'])
+            datos['total_horas_faltantes'] = float(datos['total_horas_faltantes'])
+            dias_asistidos = datos['dias_completos'] + datos['dias_incompletos'] + datos['dias_extras']
+            datos['dias_asistidos'] = dias_asistidos
+            datos['dias_habiles_mes'] = dias_habiles_mes
+            datos['dias_faltantes_mes'] = max(dias_habiles_mes - dias_asistidos, 0)
+            reporte.append(datos)
+        
+        return Response({
+            'año': año,
+            'mes': mes,
+            'dias_habiles_mes': dias_habiles_mes,
+            'reporte': reporte
+        }, status=status.HTTP_200_OK)
+
+
+# ============================================
+# VISTA SIMPLE PARA MARCAR ASISTENCIA
+# APIView de DRF - NO REQUIERE CSRF
+# ============================================

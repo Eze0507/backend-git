@@ -1,5 +1,6 @@
 # personal_admin/urls.py
 from django.urls import path, include
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
@@ -22,7 +23,15 @@ from .views import (
     MeView,
     TallerRegistrationView,
     TenantProfileView,
-    ClienteRegistrationView
+    ClienteRegistrationView,
+    DashboardAdminView,
+    DashboardEmpleadoView,
+    AsistenciaViewSet,
+    AsistenciaReporteMensualView,
+    MarcarAsistenciaView,
+    MiAsistenciaView,
+    MiHistorialAsistenciaView,
+    DiagnosticoAsistenciasView
 )
 from .views_nomina import NominaViewSet, DetalleNominaViewSet
 
@@ -41,6 +50,9 @@ router.register(r'permissions', PermissionViewSet, basename='permission')
 
 # Ruta para Bitácora
 router.register(r'bitacora', BitacoraViewSet, basename='bitacora')
+
+# Ruta para Asistencia
+router.register(r'asistencias', AsistenciaViewSet, basename='asistencia')
 
 # Rutas para Nómina
 router.register(r'nominas', NominaViewSet, basename='nomina')
@@ -61,7 +73,14 @@ urlpatterns = [
     path('auth/me/', MeView.as_view(), name='me'),
     path('taller/', TallerRegistrationView.as_view(), name='register-taller'),
     path('cliente-registro/', ClienteRegistrationView.as_view(), name='register-cliente'),
-    path('perfil-taller/', TenantProfileView.as_view(), name='tenant-profile')
+    path('perfil-taller/', TenantProfileView.as_view(), name='tenant-profile'),
+    path('dashboard/admin/', DashboardAdminView.as_view(), name='dashboard-admin'),
+    path('dashboard/empleado/', DashboardEmpleadoView.as_view(), name='dashboard-empleado'),
+    path('asistencia/marcar/', MarcarAsistenciaView.as_view(), name='asistencia-marcar'),
+    path('asistencia/mi-asistencia/', MiAsistenciaView.as_view(), name='mi-asistencia'),
+    path('asistencia/mi-historial/', MiHistorialAsistenciaView.as_view(), name='mi-historial-asistencia'),
+    path('asistencia/reporte-mensual/', AsistenciaReporteMensualView.as_view(), name='asistencia-reporte-mensual'),
+    path('asistencia/diagnostico/', DiagnosticoAsistenciasView.as_view(), name='diagnostico-asistencias'),
 ]
 
 

@@ -6,4 +6,5 @@ class PersonalAdminConfig(AppConfig):
     name = 'personal_admin'
     
     def ready(self):
-        import personal_admin.signals
+        pass
+        # import personal_admin.signals  # Comentado: el módulo signals no existe
