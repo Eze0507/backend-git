@@ -11,7 +11,8 @@ from django.db.models import Q
 import logging
 
 from personal_admin.models_saas import Tenant, UserProfile
-from personal_admin.models import Cargo, Empleado, Bitacora
+from personal_admin.models import Cargo, Empleado, Bitacora, Asistencia
+from personal_admin.model_nomina import Nomina, DetalleNomina
 from clientes_servicios.models import Cliente, Cita
 from operaciones_inventario.modelsVehiculos import Vehiculo, Marca, Modelo
 from operaciones_inventario.modelsOrdenTrabajo import (
@@ -82,6 +83,9 @@ def export_tenant_data(tenant):
             'lecturas_placa': [],
             'reportes': [],
             'bitacoras': [],
+            'asistencias': [],
+            'nominas': [],
+            'detalles_nomina': [],
         }
         
         # 1. Exportar Tenant
@@ -550,6 +554,49 @@ def export_tenant_data(tenant):
                 'tenant_id': bitacora.tenant_id,
             })
         
+        # 30. Exportar Asistencias
+        for asistencia in Asistencia.objects.filter(tenant=tenant).select_related('empleado'):
+            backup_data['asistencias'].append({
+                'id': asistencia.id,
+                'empleado_id': asistencia.empleado_id,
+                'fecha': asistencia.fecha.isoformat() if asistencia.fecha else None,
+                'hora_entrada': asistencia.hora_entrada.isoformat() if asistencia.hora_entrada else None,
+                'hora_salida': asistencia.hora_salida.isoformat() if asistencia.hora_salida else None,
+                'horas_extras': str(asistencia.horas_extras) if asistencia.horas_extras else '0.00',
+                'horas_faltantes': str(asistencia.horas_faltantes) if asistencia.horas_faltantes else '0.00',
+                'estado': asistencia.estado,
+                'fecha_creacion': asistencia.fecha_creacion.isoformat() if asistencia.fecha_creacion else None,
+                'fecha_actualizacion': asistencia.fecha_actualizacion.isoformat() if asistencia.fecha_actualizacion else None,
+                'tenant_id': asistencia.tenant_id,
+            })
+        
+        # 31. Exportar Nóminas
+        for nomina in Nomina.objects.filter(tenant=tenant):
+            backup_data['nominas'].append({
+                'id': nomina.id,
+                'mes': nomina.mes,
+                'fecha_inicio': nomina.fecha_inicio.isoformat() if nomina.fecha_inicio else None,
+                'fecha_corte': nomina.fecha_corte.isoformat() if nomina.fecha_corte else None,
+                'fecha_registro': nomina.fecha_registro.isoformat() if nomina.fecha_registro else None,
+                'estado': nomina.estado,
+                'total_nomina': str(nomina.total_nomina) if nomina.total_nomina else '0.00',
+                'tenant_id': nomina.tenant_id,
+            })
+        
+        # 32. Exportar Detalles de Nómina
+        for detalle in DetalleNomina.objects.filter(tenant=tenant).select_related('nomina', 'empleado'):
+            backup_data['detalles_nomina'].append({
+                'id': detalle.id,
+                'nomina_id': detalle.nomina_id,
+                'empleado_id': detalle.empleado_id,
+                'sueldo': str(detalle.sueldo) if detalle.sueldo else '0.00',
+                'horas_extras': str(detalle.horas_extras) if detalle.horas_extras else '0.00',
+                'total_bruto': str(detalle.total_bruto) if detalle.total_bruto else '0.00',
+                'total_descuento': str(detalle.total_descuento) if detalle.total_descuento else '0.00',
+                'sueldo_neto': str(detalle.sueldo_neto) if detalle.sueldo_neto else '0.00',
+                'tenant_id': detalle.tenant_id,
+            })
+        
         logger.info(f"Backup exportado exitosamente para tenant: {tenant.nombre_taller}")
         return backup_data
         
@@ -609,6 +656,9 @@ def import_tenant_data(backup_data, target_tenant, replace=False):
                 'lecturas_placa': 0,
                 'reportes': 0,
                 'bitacoras': 0,
+                'asistencias': 0,
+                'nominas': 0,
+                'detalles_nomina': 0,
                 'errors': [],
             }
             
@@ -628,6 +678,7 @@ def import_tenant_data(backup_data, target_tenant, replace=False):
                 'presupuestos': {},
                 'ordenes_trabajo': {},
                 'inspecciones': {},
+                'nominas': {},
             }
             
             if replace:
@@ -638,11 +689,14 @@ def import_tenant_data(backup_data, target_tenant, replace=False):
                 AsignacionTecnico.objects.filter(Q(tenant=target_tenant) | Q(tecnico__in=empleado_ids)).update(tecnico=None)
                 PruebaRuta.objects.filter(Q(tenant=target_tenant) | Q(tecnico__in=empleado_ids)).update(tecnico=None)
                 Cita.objects.filter(empleado__in=empleado_ids).update(empleado=None)
-                # Ahora borrar en orden
+                # Ahora borrar en orden (añadiendo nóminas y asistencias)
                 Bitacora.objects.filter(tenant=target_tenant).delete()
                 Reporte.objects.filter(tenant=target_tenant).delete()
                 LecturaPlaca.objects.filter(tenant=target_tenant).delete()
                 Cita.objects.filter(empleado__in=empleado_ids).delete()
+                DetalleNomina.objects.filter(tenant=target_tenant).delete()
+                Nomina.objects.filter(tenant=target_tenant).delete()
+                Asistencia.objects.filter(tenant=target_tenant).delete()
                 DetalleFacturaProveedor.objects.filter(tenant=target_tenant).delete()
                 FacturaProveedor.objects.filter(tenant=target_tenant).delete()
                 Pago.objects.filter(tenant=target_tenant).delete()
@@ -1032,15 +1086,25 @@ def import_tenant_data(backup_data, target_tenant, replace=False):
             # 12. Importar Órdenes de Trabajo
             for orden_data in backup_data.get('ordenes_trabajo', []):
                 old_id = orden_data['id']
-                old_cliente_id = orden_data.pop('cliente_id')
-                old_vehiculo_id = orden_data.pop('vehiculo_id')
+                old_cliente_id = orden_data.pop('cliente_id', None)
+                old_vehiculo_id = orden_data.pop('vehiculo_id', None)
                 orden_data.pop('id')
                 orden_data.pop('tenant_id')
                 
-                if old_cliente_id and old_cliente_id in id_mapping['clientes']:
-                    orden_data['cliente_id'] = id_mapping['clientes'][old_cliente_id]
-                if old_vehiculo_id and old_vehiculo_id in id_mapping['vehiculos']:
-                    orden_data['vehiculo_id'] = id_mapping['vehiculos'][old_vehiculo_id]
+                # Validar que cliente y vehiculo existan - son campos requeridos
+                if not old_cliente_id or old_cliente_id not in id_mapping['clientes']:
+                    logger.warning(f"Orden {old_id}: Cliente {old_cliente_id} no encontrado en mapping, omitiendo orden")
+                    summary['errors'].append(f"Orden {old_id}: Cliente no encontrado")
+                    continue
+                    
+                if not old_vehiculo_id or old_vehiculo_id not in id_mapping['vehiculos']:
+                    logger.warning(f"Orden {old_id}: Vehículo {old_vehiculo_id} no encontrado en mapping, omitiendo orden")
+                    summary['errors'].append(f"Orden {old_id}: Vehículo no encontrado")
+                    continue
+                
+                # Mapear FKs
+                orden_data['cliente_id'] = id_mapping['clientes'][old_cliente_id]
+                orden_data['vehiculo_id'] = id_mapping['vehiculos'][old_vehiculo_id]
                 
                 # Ensure all decimal and numeric fields have default values (never None)
                 if orden_data.get('descuento') is None or orden_data.get('descuento') == 'None':
@@ -1052,7 +1116,7 @@ def import_tenant_data(backup_data, target_tenant, replace=False):
                 if orden_data.get('total') is None or orden_data.get('total') == 'None':
                     orden_data['total'] = '0.00'
                 if orden_data.get('kilometraje') is None or orden_data.get('kilometraje') == 'None':
-                    orden_data['kilometraje'] = 0
+                    orden_data['kilometraje'] = '0'
                 
                 # Convertir campos string a Decimal
                 for field in ['descuento', 'impuesto', 'subtotal', 'total']:
@@ -1060,9 +1124,34 @@ def import_tenant_data(backup_data, target_tenant, replace=False):
                         if isinstance(orden_data[field], str):
                             orden_data[field] = Decimal(orden_data[field])
                 
-                orden = OrdenTrabajo.objects.create(tenant=target_tenant, **orden_data)
-                id_mapping['ordenes_trabajo'][old_id] = orden.id
-                summary['ordenes_trabajo'] += 1
+                # Convertir kilometraje a entero
+                if 'kilometraje' in orden_data and orden_data['kilometraje'] is not None:
+                    if isinstance(orden_data['kilometraje'], str):
+                        orden_data['kilometraje'] = int(float(orden_data['kilometraje']))
+                    elif isinstance(orden_data['kilometraje'], (float, Decimal)):
+                        orden_data['kilometraje'] = int(orden_data['kilometraje'])
+                
+                # Convertir campos de fecha de string a datetime
+                from datetime import datetime as dt
+                if 'fecha_creacion' in orden_data and isinstance(orden_data['fecha_creacion'], str):
+                    orden_data['fecha_creacion'] = dt.fromisoformat(orden_data['fecha_creacion'])
+                
+                if 'fecha_inicio' in orden_data and orden_data['fecha_inicio'] and isinstance(orden_data['fecha_inicio'], str):
+                    orden_data['fecha_inicio'] = dt.fromisoformat(orden_data['fecha_inicio'])
+                
+                if 'fecha_finalizacion' in orden_data and orden_data['fecha_finalizacion'] and isinstance(orden_data['fecha_finalizacion'], str):
+                    orden_data['fecha_finalizacion'] = dt.fromisoformat(orden_data['fecha_finalizacion'])
+                
+                if 'fecha_entrega' in orden_data and orden_data['fecha_entrega'] and isinstance(orden_data['fecha_entrega'], str):
+                    orden_data['fecha_entrega'] = dt.fromisoformat(orden_data['fecha_entrega'])
+                
+                try:
+                    orden = OrdenTrabajo.objects.create(tenant=target_tenant, **orden_data)
+                    id_mapping['ordenes_trabajo'][old_id] = orden.id
+                    summary['ordenes_trabajo'] += 1
+                except Exception as e:
+                    logger.error(f"Error al importar orden de trabajo {old_id}: {str(e)}")
+                    summary['errors'].append(f"Orden de trabajo {old_id}: {str(e)}")
             
             # 13. Importar Detalles de Órdenes
             for detalle_data in backup_data.get('detalles_ordenes', []):
@@ -1343,6 +1432,95 @@ def import_tenant_data(backup_data, target_tenant, replace=False):
                 reporte_data.pop('archivo', None)
                 Reporte.objects.create(tenant=target_tenant, **reporte_data)
                 summary['reportes'] += 1
+            
+            # 27. Importar Asistencias (después de empleados)
+            for asistencia_data in backup_data.get('asistencias', []):
+                from datetime import datetime as dt, date, time as time_obj
+                
+                old_empleado_id = asistencia_data.pop('empleado_id')
+                asistencia_data.pop('id')
+                asistencia_data.pop('tenant_id')
+                
+                if old_empleado_id and old_empleado_id in id_mapping['empleados']:
+                    asistencia_data['empleado_id'] = id_mapping['empleados'][old_empleado_id]
+                    
+                    # Convertir campos Decimal de string a Decimal
+                    for field in ['horas_extras', 'horas_faltantes']:
+                        if field in asistencia_data and asistencia_data[field] is not None:
+                            if isinstance(asistencia_data[field], str):
+                                asistencia_data[field] = Decimal(asistencia_data[field])
+                    
+                    # Convertir campos de fecha/hora de string a objetos date/time
+                    if 'fecha' in asistencia_data and isinstance(asistencia_data['fecha'], str):
+                        asistencia_data['fecha'] = dt.fromisoformat(asistencia_data['fecha']).date()
+                    
+                    if 'hora_entrada' in asistencia_data and isinstance(asistencia_data['hora_entrada'], str):
+                        # Parsear time desde string (formato HH:MM:SS o HH:MM:SS.ffffff)
+                        hora_str = asistencia_data['hora_entrada']
+                        asistencia_data['hora_entrada'] = dt.strptime(hora_str.split('.')[0], '%H:%M:%S').time()
+                    
+                    if 'hora_salida' in asistencia_data and asistencia_data['hora_salida']:
+                        if isinstance(asistencia_data['hora_salida'], str):
+                            # Parsear time desde string (formato HH:MM:SS o HH:MM:SS.ffffff)
+                            hora_str = asistencia_data['hora_salida']
+                            asistencia_data['hora_salida'] = dt.strptime(hora_str.split('.')[0], '%H:%M:%S').time()
+                    
+                    # Convertir fecha_creacion y fecha_actualizacion
+                    if 'fecha_creacion' in asistencia_data and isinstance(asistencia_data['fecha_creacion'], str):
+                        asistencia_data['fecha_creacion'] = dt.fromisoformat(asistencia_data['fecha_creacion'])
+                    
+                    if 'fecha_actualizacion' in asistencia_data and isinstance(asistencia_data['fecha_actualizacion'], str):
+                        asistencia_data['fecha_actualizacion'] = dt.fromisoformat(asistencia_data['fecha_actualizacion'])
+                    
+                    Asistencia.objects.create(tenant=target_tenant, **asistencia_data)
+                    summary['asistencias'] += 1
+            
+            # 28. Importar Nóminas
+            for nomina_data in backup_data.get('nominas', []):
+                from datetime import datetime as dt
+                
+                old_id = nomina_data['id']
+                nomina_data.pop('id')
+                nomina_data.pop('tenant_id')
+                
+                # Convertir campo total_nomina de string a Decimal
+                if 'total_nomina' in nomina_data and nomina_data['total_nomina'] is not None:
+                    if isinstance(nomina_data['total_nomina'], str):
+                        nomina_data['total_nomina'] = Decimal(nomina_data['total_nomina'])
+                
+                # Convertir campos de fecha de string a date
+                if 'fecha_inicio' in nomina_data and isinstance(nomina_data['fecha_inicio'], str):
+                    nomina_data['fecha_inicio'] = dt.fromisoformat(nomina_data['fecha_inicio']).date()
+                
+                if 'fecha_corte' in nomina_data and isinstance(nomina_data['fecha_corte'], str):
+                    nomina_data['fecha_corte'] = dt.fromisoformat(nomina_data['fecha_corte']).date()
+                
+                if 'fecha_registro' in nomina_data and isinstance(nomina_data['fecha_registro'], str):
+                    nomina_data['fecha_registro'] = dt.fromisoformat(nomina_data['fecha_registro'])
+                
+                nomina = Nomina.objects.create(tenant=target_tenant, **nomina_data)
+                id_mapping['nominas'][old_id] = nomina.id
+                summary['nominas'] += 1
+            
+            # 29. Importar Detalles de Nómina (después de nóminas y empleados)
+            for detalle_data in backup_data.get('detalles_nomina', []):
+                old_nomina_id = detalle_data.pop('nomina_id')
+                old_empleado_id = detalle_data.pop('empleado_id')
+                detalle_data.pop('id')
+                detalle_data.pop('tenant_id')
+                
+                if old_nomina_id in id_mapping['nominas'] and old_empleado_id in id_mapping['empleados']:
+                    detalle_data['nomina_id'] = id_mapping['nominas'][old_nomina_id]
+                    detalle_data['empleado_id'] = id_mapping['empleados'][old_empleado_id]
+                    
+                    # Convertir campos Decimal de string a Decimal
+                    for field in ['sueldo', 'horas_extras', 'total_bruto', 'total_descuento', 'sueldo_neto']:
+                        if field in detalle_data and detalle_data[field] is not None:
+                            if isinstance(detalle_data[field], str):
+                                detalle_data[field] = Decimal(detalle_data[field])
+                    
+                    DetalleNomina.objects.create(tenant=target_tenant, **detalle_data)
+                    summary['detalles_nomina'] += 1
             
             logger.info(f"Backup importado exitosamente al tenant: {target_tenant.nombre_taller}")
             return summary
