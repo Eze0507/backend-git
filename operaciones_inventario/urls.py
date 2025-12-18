@@ -29,4 +29,5 @@ router.register(r'proveedores', ProveedorViewSet, basename='proveedor')
 urlpatterns = [
     path('', include(router.urls)),
     path('', include(ordenes_router.urls)),
+   
 ]
